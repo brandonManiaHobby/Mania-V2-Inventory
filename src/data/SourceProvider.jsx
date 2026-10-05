@@ -1,22 +1,26 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { loadSource } from './source'
+import { useAuth } from '../auth'
 
 // ============================================================
-// DATA LAYER — SHARED SOURCE PROVIDER (the "one brain", wired to React)
-// Loads the source ONCE up front; holds it in one place; every screen
-// reads it via useSource(). refresh() reloads the one source → every
-// screen re-derives identically (auto-refresh after a historic edit).
-// No screen fetches its own data. Screens cannot disagree, by design.
+// DATA LAYER — SHARED SOURCE PROVIDER (the "one brain")
+// Loads the source into one place; every screen reads via useSource().
+//
+// CRITICAL ORDERING: the source must load only AFTER auth is ready, and
+// reload when the auth identity changes. RLS keys off auth.uid() — if we
+// fetch before login resolves, every table returns empty (anonymous) and
+// never recovers. So we gate the load on the auth session.
 // ============================================================
 const SourceCtx = createContext(null)
 
 export function SourceProvider({ children }) {
+  const { status: authStatus, session } = useAuth()
   const [source, setSource] = useState(null)
-  const [status, setStatus] = useState('loading') // loading | ready | error
+  const [status, setStatus] = useState('idle') // idle | loading | ready | error
   const [error, setError] = useState(null)
 
   const refresh = useCallback(async () => {
-    setStatus((s) => (s === 'ready' ? 'ready' : 'loading'))
+    setStatus('loading')
     try {
       const data = await loadSource()
       setSource(data)
@@ -28,7 +32,18 @@ export function SourceProvider({ children }) {
     }
   }, [])
 
-  useEffect(() => { refresh() }, [refresh])
+  // Load ONLY once auth is resolved. Re-run when the logged-in user changes
+  // (login completes / switches account) so RLS-scoped data is fetched with
+  // the right identity attached.
+  useEffect(() => {
+    if (authStatus === 'ready') {
+      refresh()
+    } else if (authStatus === 'signedOut') {
+      setSource(null)
+      setStatus('idle')
+    }
+    // authStatus 'checking'/'noProfile' -> hold off
+  }, [authStatus, session?.user?.id, refresh])
 
   return (
     <SourceCtx.Provider value={{ source, status, error, refresh }}>
@@ -37,8 +52,6 @@ export function SourceProvider({ children }) {
   )
 }
 
-// Every screen uses this to read the shared source. After any write,
-// call refresh() and the whole app re-derives from the new truth.
 export function useSource() {
   const ctx = useContext(SourceCtx)
   if (!ctx) throw new Error('useSource must be used inside <SourceProvider>')
