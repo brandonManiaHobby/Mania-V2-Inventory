@@ -19,6 +19,7 @@ const NAV = [
   { id: 'insights',   label: 'Insights',      group: 'Analytics',  needs: (c) => c.seesAnalytics },
   { id: 'inventory',  label: 'Inventory',     group: 'Stock',      needs: (c) => c.seesInventory },
   { id: 'movestock',  label: 'Move stock',    group: 'Stock',      needs: (c) => c.canMoveStock },
+  { id: 'spend',      label: 'Spend',         group: 'Finance',    needs: (c) => c.seesAllDepartments },
   { id: 'vat',        label: 'VAT report',    group: 'Finance',    needs: (c) => c.seesAllDepartments },
 ]
 

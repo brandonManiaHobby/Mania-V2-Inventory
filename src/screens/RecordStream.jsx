@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react'
 import { computeStream } from '../money'
-import { gbp, gbp0, pct } from '../data'
+import { gbp, gbp0, pct, saveStream, todayKey, useSource } from '../data'
 import StatCard from '../components/StatCard'
+
+const PLATFORMS = ['eBay Live', 'Whatnot', 'TikTok Shop', 'Fanatics']
 
 // ============================================================
 // RECORD STREAM (Stage 5)
@@ -15,11 +17,42 @@ import StatCard from '../components/StatCard'
 // preview proves the money flow first.
 // ============================================================
 export default function RecordStream({ scoped }) {
+  const { refresh } = useSource()
   const [gross, setGross] = useState('')
   const [showNet, setShowNet] = useState(false)
   const [net, setNet] = useState('')
   const [shipping, setShipping] = useState('')
   const [lines, setLines] = useState([{ stockItemId: '', qty: '', price: '' }])
+  // stream meta
+  const me = scoped.cap?.userId
+  const [streamerId, setStreamerId] = useState(me || '')
+  const [platform, setPlatform] = useState('')
+  const [channel, setChannel] = useState('')
+  const [streamDate, setStreamDate] = useState(todayKey())
+  const [title, setTitle] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState(null)
+  const [err, setErr] = useState(null)
+
+  const save = async () => {
+    setSaving(true); setErr(null); setMsg(null)
+    try {
+      await saveStream({
+        streamerId, platform, channel, streamDate, title,
+        gross: Number(gross) || 0,
+        net: showNet && net !== '' ? Number(net) : null,
+        shipping: showNet && shipping !== '' ? Number(shipping) : null,
+        lines,
+      })
+      setMsg('Stream saved ✓')
+      await refresh()
+      // reset
+      setGross(''); setNet(''); setShipping(''); setShowNet(false)
+      setLines([{ stockItemId: '', qty: '', price: '' }]); setTitle('')
+    } catch (e) {
+      setErr(e.message || 'Could not save')
+    } finally { setSaving(false) }
+  }
 
   // VAT lookup from the product's treatment (talks to the engine).
   const vatOf = (stockItemId) => {
@@ -58,6 +91,28 @@ export default function RecordStream({ scoped }) {
   return (
     <div style={{ maxWidth: 680 }}>
       <h2 style={{ marginTop: 0 }}>Record stream</h2>
+
+      {/* Stream meta */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+        <label style={{ fontSize: 13, color: '#444' }}>Streamer<br />
+          <select style={{ ...field, marginTop: 4, minWidth: 150 }} value={streamerId} onChange={(e) => setStreamerId(e.target.value)}>
+            <option value="">Select…</option>
+            {scoped.profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+        <label style={{ fontSize: 13, color: '#444' }}>Platform<br />
+          <select style={{ ...field, marginTop: 4 }} value={platform} onChange={(e) => setPlatform(e.target.value)}>
+            <option value="">Select…</option>
+            {PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </label>
+        <label style={{ fontSize: 13, color: '#444' }}>Date<br />
+          <input style={{ ...field, marginTop: 4 }} type="date" value={streamDate} onChange={(e) => setStreamDate(e.target.value)} />
+        </label>
+        <label style={{ fontSize: 13, color: '#444', flex: 1, minWidth: 160 }}>Title (optional)<br />
+          <input style={{ ...field, marginTop: 4, width: '100%' }} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. £1 starts Lights Out" />
+        </label>
+      </div>
 
       {/* Products */}
       <div style={{ fontWeight: 700, margin: '8px 0 6px' }}>Products sold</div>
@@ -128,6 +183,17 @@ export default function RecordStream({ scoped }) {
         Live preview via the money engine · VAT computed per product line (standard vs second-hand).
         {netApplied ? ' Net profit shown as the standout.' : ' Add net to see true take-home.'}
       </p>
+
+      {/* Save */}
+      <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button onClick={save} disabled={saving || !streamerId || !gross}
+          style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: '#1a7f37',
+            color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
+          {saving ? 'Saving…' : 'Save stream'}
+        </button>
+        {msg && <span style={{ color: '#1a7f37', fontWeight: 600 }}>{msg}</span>}
+        {err && <span style={{ color: '#c82828' }}>{err}</span>}
+      </div>
     </div>
   )
 }

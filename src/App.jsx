@@ -3,7 +3,7 @@ import { useAuth, Login } from './auth'
 import { useSource, int } from './data'
 import { scopeSource } from './scoping'
 import NavShell from './components/NavShell'
-import { Dashboard, RecordStream } from './screens'
+import { Dashboard, RecordStream, Spend } from './screens'
 
 // ============================================================
 // STAGE 4 — auth + nav shell.
@@ -38,6 +38,8 @@ export default function App() {
         <Dashboard scoped={scoped} />
       ) : active === 'record' ? (
         <RecordStream scoped={scoped} />
+      ) : active === 'spend' ? (
+        <Spend scoped={scoped} />
       ) : (
         <>
           <h2 style={{ marginTop: 0 }}>{PLACEHOLDER[active] || active}</h2>

@@ -76,6 +76,8 @@ function normStream(r) {
     totalSales: num(r.total_sales ?? r.revenue),  // gross — full precision
     // net is streamer-entered and is the source of truth (money-engine spec).
     net: r.net == null ? null : num(r.net),
+    shipping: num(r.shipping),
+    fees: num(r.fees),
     profit: num(r.profit),
     createdAt: r.created_at ?? null,
   }
