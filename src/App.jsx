@@ -1,79 +1,68 @@
 import { useState } from 'react'
+import { useAuth, Login } from './auth'
 import { useSource, int } from './data'
 import { scopeSource } from './scoping'
+import NavShell from './components/NavShell'
 
 // ============================================================
-// STAGE 3 GATE — proves central scoping:
-// Pick a role; the scoped view updates. A lead sees only their dept,
-// a streamer only their own — enforced at the source, not the UI.
-// (Uses the live source; counts reflect RLS until auth lands in Stage 4.)
+// STAGE 4 — auth + nav shell.
+// Not logged in -> Login. Logged in -> role-appropriate nav shell with
+// placeholder screens (structure first). Live data now flows: the logged-
+// in profile unlocks RLS, and the scoped source shows real counts.
 // ============================================================
-const SAMPLE_ROLES = [
-  { label: 'Admin', profile: { id: 'demo', role: 'admin', department: null } },
-  { label: 'Manager', profile: { id: 'demo', role: 'manager', department: null } },
-  { label: 'Lead (Mania TCG)', profile: { id: 'demo', role: 'channel_lead', department: 'Mania TCG' } },
-  { label: 'Warehouse', profile: { id: 'demo', role: 'warehouse', department: null } },
-  { label: 'Streamer', profile: { id: 'demo', role: 'breaker', department: 'Mania TCG' } },
-]
+const PLACEHOLDER = {
+  mystock: 'My Stock', record: 'Record stream', past: 'Past streams',
+  dashboard: 'Dashboard', streamers: 'Streamers', products: 'Products',
+  insights: 'Insights', inventory: 'Inventory', movestock: 'Move stock',
+  vat: 'VAT report',
+}
 
 export default function App() {
-  const { source, status } = useSource()
-  const [idx, setIdx] = useState(0)
-  const chosen = SAMPLE_ROLES[idx]
-  const scoped = scopeSource(source, chosen.profile)
+  const { status: authStatus, profile, signOut } = useAuth()
+  const { source, status: srcStatus } = useSource()
+  const [active, setActive] = useState('dashboard')
+
+  if (authStatus === 'checking') return <Centered>Checking session…</Centered>
+  if (authStatus === 'signedOut') return <Login />
+  if (authStatus === 'noProfile') return <Centered>Signed in, but no profile found for this account. An admin needs to set up your profile.</Centered>
+
+  // Logged in with a profile -> scoped live data flows.
+  const scoped = scopeSource(source, profile)
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 640, margin: '40px auto', padding: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-        <h1 style={{ margin: 0, fontSize: 28 }}>Mania V2</h1>
-        <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 999, background: '#fde68a', color: '#7c5e00', fontWeight: 700 }}>
-          BUILD · STAGE 3
-        </span>
-      </div>
-      <p style={{ color: '#666', marginTop: 4 }}>Scoping — enforced once at the source. Pick a role to see its view.</p>
-
-      <div style={{ marginTop: 20, padding: 16, border: '1px solid #e5e5e5', borderRadius: 12 }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-          {SAMPLE_ROLES.map((r, i) => (
-            <button key={r.label} onClick={() => setIdx(i)}
-              style={{ padding: '6px 12px', borderRadius: 999, cursor: 'pointer', font: 'inherit',
-                border: '1px solid ' + (i === idx ? '#7c5e00' : '#ddd'),
-                background: i === idx ? '#fde68a' : '#faf9f7', fontWeight: i === idx ? 700 : 400 }}>
-              {r.label}
-            </button>
-          ))}
-        </div>
-
-        {status !== 'ready' && <p>Loading source…</p>}
-        {status === 'ready' && (
-          <>
-            <p style={{ margin: 0, fontWeight: 700 }}>Viewing as: {chosen.label}</p>
-            <div style={{ color: '#666', fontSize: 13, margin: '4px 0 12px' }}>
-              Caps: {Object.entries(scoped.cap).filter(([k, v]) => v === true).map(([k]) => k).join(' · ') || '—'}
-            </div>
-            <table style={{ width: '100%', fontSize: 14, borderCollapse: 'collapse' }}>
-              <tbody>
-                {[
-                  ['Streams in scope', scoped.streams.length],
-                  ['Stream lines', scoped.streamLines.length],
-                  ['Holdings', scoped.holdings.length],
-                  ['Profiles', scoped.profiles.length],
-                  ['Stock items', scoped.stockItems.length],
-                ].map(([k, v]) => (
-                  <tr key={k} style={{ borderTop: '1px solid #f0f0f0' }}>
-                    <td style={{ padding: '6px 0', color: '#444' }}>{k}</td>
-                    <td style={{ padding: '6px 0', textAlign: 'right', fontWeight: 600 }}>{int(v)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p style={{ color: '#666', fontSize: 13, marginTop: 12 }}>
-              A lead/streamer physically cannot receive out-of-scope rows — filtered here, not in the UI.
-              Next: Stage 4 — nav shell + auth (live data unlocks).
-            </p>
-          </>
+    <NavShell profile={profile} active={active} onNavigate={setActive} onSignOut={signOut}>
+      <h2 style={{ marginTop: 0 }}>{PLACEHOLDER[active] || active}</h2>
+      <p style={{ color: '#666' }}>
+        Stage 4 placeholder — structure first. Real screen comes in Stage 5.
+      </p>
+      <div style={{ marginTop: 16, padding: 14, border: '1px solid #eee', borderRadius: 10, maxWidth: 420 }}>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>Live scoped data (proving the stack)</div>
+        {srcStatus !== 'ready' ? <p>Loading…</p> : (
+          <table style={{ width: '100%', fontSize: 14, borderCollapse: 'collapse' }}>
+            <tbody>
+              {[
+                ['Streams in your scope', scoped.streams.length],
+                ['Holdings', scoped.holdings.length],
+                ['Stock items', scoped.stockItems.length],
+                ['Profiles', scoped.profiles.length],
+              ].map(([k, v]) => (
+                <tr key={k} style={{ borderTop: '1px solid #f3f3f3' }}>
+                  <td style={{ padding: '5px 0', color: '#555' }}>{k}</td>
+                  <td style={{ padding: '5px 0', textAlign: 'right', fontWeight: 600 }}>{int(v)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
+    </NavShell>
+  )
+}
+
+function Centered({ children }) {
+  return (
+    <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 420, margin: '100px auto', padding: 24, textAlign: 'center', color: '#555' }}>
+      {children}
     </div>
   )
 }
