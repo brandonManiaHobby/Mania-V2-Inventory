@@ -3,6 +3,7 @@ import { useAuth, Login } from './auth'
 import { useSource, int } from './data'
 import { scopeSource } from './scoping'
 import NavShell from './components/NavShell'
+import { Dashboard } from './screens'
 
 // ============================================================
 // STAGE 4 — auth + nav shell.
@@ -31,30 +32,34 @@ export default function App() {
 
   return (
     <NavShell profile={profile} active={active} onNavigate={setActive} onSignOut={signOut}>
-      <h2 style={{ marginTop: 0 }}>{PLACEHOLDER[active] || active}</h2>
-      <p style={{ color: '#666' }}>
-        Stage 4 placeholder — structure first. Real screen comes in Stage 5.
-      </p>
-      <div style={{ marginTop: 16, padding: 14, border: '1px solid #eee', borderRadius: 10, maxWidth: 420 }}>
-        <div style={{ fontWeight: 700, marginBottom: 6 }}>Live scoped data (proving the stack)</div>
-        {srcStatus !== 'ready' ? <p>Loading…</p> : (
-          <table style={{ width: '100%', fontSize: 14, borderCollapse: 'collapse' }}>
-            <tbody>
-              {[
-                ['Streams in your scope', scoped.streams.length],
-                ['Holdings', scoped.holdings.length],
-                ['Stock items', scoped.stockItems.length],
-                ['Profiles', scoped.profiles.length],
-              ].map(([k, v]) => (
-                <tr key={k} style={{ borderTop: '1px solid #f3f3f3' }}>
-                  <td style={{ padding: '5px 0', color: '#555' }}>{k}</td>
-                  <td style={{ padding: '5px 0', textAlign: 'right', fontWeight: 600 }}>{int(v)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {srcStatus !== 'ready' ? (
+        <p>Loading…</p>
+      ) : active === 'dashboard' ? (
+        <Dashboard scoped={scoped} />
+      ) : (
+        <>
+          <h2 style={{ marginTop: 0 }}>{PLACEHOLDER[active] || active}</h2>
+          <p style={{ color: '#666' }}>Stage 5 — not built yet. Dashboard is the first live screen.</p>
+          <div style={{ marginTop: 16, padding: 14, border: '1px solid #eee', borderRadius: 10, maxWidth: 420 }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>Live scoped data (proving the stack)</div>
+            <table style={{ width: '100%', fontSize: 14, borderCollapse: 'collapse' }}>
+              <tbody>
+                {[
+                  ['Streams in your scope', scoped.streams.length],
+                  ['Holdings', scoped.holdings.length],
+                  ['Stock items', scoped.stockItems.length],
+                  ['Profiles', scoped.profiles.length],
+                ].map(([k, v]) => (
+                  <tr key={k} style={{ borderTop: '1px solid #f3f3f3' }}>
+                    <td style={{ padding: '5px 0', color: '#555' }}>{k}</td>
+                    <td style={{ padding: '5px 0', textAlign: 'right', fontWeight: 600 }}>{int(v)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </NavShell>
   )
 }
