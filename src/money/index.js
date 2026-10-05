@@ -1,1 +1,1 @@
-export { computeMoney, sumMoney } from './engine'
+export { computeMoney, sumMoney, computeStream } from './engine'

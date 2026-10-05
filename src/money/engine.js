@@ -120,3 +120,57 @@ export function sumMoney(ladders = []) {
   t.netMarginPct = t.gross !== 0 ? t.trueProfit / t.gross : 0
   return t
 }
+
+// ============================================================
+// computeStream(stream, lines, productVatLookup) -> the stream's ladder.
+// Handles a MULTI-LINE stream with PER-LINE VAT (each product's treatment)
+// and one stream-level net (streamer-entered, source of truth). Shipping is
+// carried as a separate shown-but-not-deducted figure.
+//
+//  stream: { gross, net, shipping, ... }   net/shipping may be null
+//  lines:  [{ qty, unitCost, lineTotal, brokered, stockItemId }]
+//  vatOf:  (stockItemId) => 'standard' | 'second_hand'
+//
+// VAT is computed per line against the NET proportionally: each line's share
+// of net = line's gross share × net. Then VAT per line by its treatment.
+// This keeps mixed-VAT streams correct and still ties to one entered net.
+// ============================================================
+export function computeStream(stream, lines = [], vatOf = () => 'standard') {
+  const gross = Number(stream.gross ?? stream.totalSales) || 0
+  const net = (stream.net === null || stream.net === undefined) ? gross : (Number(stream.net) || 0)
+  const shipping = Number(stream.shipping) || 0
+
+  const live = lines.filter((l) => !l.brokered)
+  const grossOfLines = live.reduce((a, l) => a + (Number(l.lineTotal) || 0), 0) || gross || 1
+  const cost = live.reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.unitCost) || 0), 0)
+
+  // Per-line VAT: apportion net by each line's share of gross, then apply the
+  // line's product VAT treatment to its net share.
+  let vatPortion = 0
+  for (const l of live) {
+    const lineGross = Number(l.lineTotal) || 0
+    const lineNetShare = grossOfLines > 0 ? (lineGross / grossOfLines) * net : 0
+    const treatment = vatOf(l.stockItemId)
+    if (treatment !== 'second_hand') {
+      vatPortion += lineNetShare - lineNetShare / 1.2 // inclusive VAT fraction
+    }
+  }
+
+  const netExVat = net - vatPortion
+  const costExVat = cost / 1.2  // stock cost is VAT-inclusive (standard); refined per-line later if needed
+  const fees = gross - net
+  const grossMargin = netExVat - costExVat
+  const trueProfit = netExVat - costExVat
+
+  return {
+    gross, fees, net, vatPortion, netExVat,
+    costPaid: cost, costInclVat: cost, costExVat,
+    grossMargin, vatOwed: vatPortion, trueProfit,
+    shipping,                          // shown, NOT deducted
+    grossMarginPct: netExVat !== 0 ? grossMargin / netExVat : 0,
+    netMarginPct: gross !== 0 ? trueProfit / gross : 0,
+    recoveryContribution: netExVat,
+    recoveryCostBasis: costExVat,
+    netEntered: stream.net !== null && stream.net !== undefined,
+  }
+}
