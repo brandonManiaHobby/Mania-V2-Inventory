@@ -20,7 +20,9 @@ const NAV = [
   { id: 'inventory',  label: 'Inventory',     group: 'Stock',      needs: (c) => c.seesInventory },
   { id: 'movestock',  label: 'Move stock',    group: 'Stock',      needs: (c) => c.canMoveStock },
   { id: 'spend',      label: 'Spend',         group: 'Finance',    needs: (c) => c.seesAllDepartments },
-  { id: 'vat',        label: 'VAT report',    group: 'Finance',    needs: (c) => c.seesAllDepartments },
+  { id: 'vatreport',  label: 'VAT report',    group: 'Reporting',  needs: (c) => c.seesAllDepartments },
+  { id: 'stockpnl',   label: 'Stock P&L',     group: 'Reporting',  needs: (c) => c.seesAllDepartments },
+  { id: 'toppssurvey',label: 'Topps survey',  group: 'Reporting',  needs: (c) => c.seesAllDepartments },
 ]
 
 export default function NavShell({ profile, active, onNavigate, onSignOut, children }) {
