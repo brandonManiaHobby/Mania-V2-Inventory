@@ -20,6 +20,7 @@ const NAV = [
   { id: 'teams',      label: 'Teams',         group: 'Analytics',  needs: (c) => c.seesAnalytics },
   { id: 'inventory',  label: 'Inventory',     group: 'Stock',      needs: (c) => c.seesInventory },
   { id: 'movestock',  label: 'Move stock',    group: 'Stock',      needs: (c) => c.canMoveStock },
+  { id: 'distro',     label: 'Distro sales',  group: 'Stock',      needs: (c) => c.canMoveStock },
   { id: 'finance',    label: 'Finance',       group: 'Finance',    needs: (c) => c.seesAllDepartments },
   { id: 'export',     label: 'Export',        group: 'Reporting',  needs: (c) => c.seesAnalytics }, // lead sees dept-scoped
   { id: 'toppssurvey',label: 'Topps survey',  group: 'Reporting',  needs: (c) => c.seesAllDepartments },

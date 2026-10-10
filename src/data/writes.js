@@ -65,6 +65,17 @@ export async function saveStream(input) {
     if (e2) throw e2
   }
 
+  // ---- attach the stream URL (share link). record_stream returns void, so
+  // set_stream_url finds the just-recorded stream by streamer+date. ----
+  if (input.streamUrl && input.streamUrl.trim()) {
+    const { error: e3 } = await supabase.rpc('set_stream_url', {
+      p_url: input.streamUrl.trim(),
+      p_streamer_id: input.streamerId,
+      p_stream_date: input.streamDate,
+    })
+    if (e3) throw e3
+  }
+
   return streamId
 }
 
@@ -117,21 +128,65 @@ export async function returnToWarehouse(source, { stockItemId, fromStreamerId, q
   if (error) throw error
 }
 
-// DISTRO SALE: warehouse -> sold. Reuses the FIXED record_distro_sale (now
-// decrements correctly). Needs a wave + revenue. Hard-blocked on wave qty.
-export async function distroSale(source, { stockItemId, waveNo, qty, revenue, note }) {
+// DISTRO SALE: warehouse -> sold. Reuses the FIXED record_distro_sale (atomic
+// decrement + waterfall), then attaches the B2B/Shop record: sale channel,
+// customer, invoice ref + optional uploaded invoice file, payment status/due.
+// record_distro_sale returns the new id; we upload the invoice named by that
+// id, then set_distro_details writes the record fields. Hard-blocked on wave qty.
+export async function distroSale(source, {
+  stockItemId, waveNo, qty, revenue, note, soldOn,
+  saleChannel, customerName, customerVat, invoiceRef, paymentStatus, paymentDue, invoiceFile,
+}) {
   const n = Number(qty)
   if (!stockItemId) throw new Error('Pick a product')
   if (waveNo == null) throw new Error('Pick a wave')
   if (!(n > 0)) throw new Error('Quantity must be positive')
+  if (saleChannel && !['b2b', 'shop'].includes(saleChannel)) throw new Error('Sale channel must be B2B or Shop')
+  if (saleChannel === 'b2b' && !(customerName && customerName.trim())) throw new Error('B2B sale needs a customer / business name')
   const inWave = availableQty(source, { stockItemId, holderId: 'warehouse', waveNo })
   if (n > inWave) throw new Error(`Only ${inWave} of wave ${waveNo} in the warehouse — cannot sell ${n}`)
 
-  const { error } = await supabase.rpc('record_distro_sale', {
+  // 1) atomic stock decrement + waterfall; returns the new distro id
+  const { data: distroId, error } = await supabase.rpc('record_distro_sale', {
     p_stock_item_id: stockItemId, p_wave_no: waveNo, p_qty: n,
     p_revenue: money2(Number(revenue) || 0), p_note: note || null,
+    p_sold_on: soldOn || undefined,
   })
   if (error) throw error
+
+  // 2) upload the invoice file (optional) to the private bucket, named by id
+  let invoicePath = null
+  if (invoiceFile) {
+    const ext = (invoiceFile.name.split('.').pop() || 'pdf').toLowerCase().replace(/[^a-z0-9]/g, '')
+    invoicePath = `${distroId}/invoice.${ext}`
+    const up = await supabase.storage.from('distro-invoices')
+      .upload(invoicePath, invoiceFile, { upsert: true, contentType: invoiceFile.type || undefined })
+    if (up.error) throw new Error(`Sale saved, but invoice upload failed: ${up.error.message}`)
+  }
+
+  // 3) attach the record fields
+  if (saleChannel || customerName || invoiceRef || paymentStatus || invoicePath) {
+    const { error: e2 } = await supabase.rpc('set_distro_details', {
+      p_id: distroId,
+      p_sale_channel: saleChannel || null,
+      p_customer_name: customerName || null,
+      p_customer_vat: customerVat || null,
+      p_invoice_ref: invoiceRef || null,
+      p_payment_status: paymentStatus || null,
+      p_payment_due: paymentDue || null,
+      p_invoice_path: invoicePath,
+    })
+    if (e2) throw e2
+  }
+  return distroId
+}
+
+// A short-lived signed URL to view/download a private invoice file.
+export async function invoiceSignedUrl(path, seconds = 120) {
+  if (!path) return null
+  const { data, error } = await supabase.storage.from('distro-invoices').createSignedUrl(path, seconds)
+  if (error) throw error
+  return data?.signedUrl || null
 }
 
 // DELETE a stream — reuses V1's delete_stream RPC (atomic: removes the
@@ -183,6 +238,15 @@ export async function editStream(input) {
       p_shipping: input.shipping != null ? money2(input.shipping) : null,
     })
     if (e2) throw e2
+  }
+
+  // Edit has the id directly — set the URL on this exact stream.
+  if (input.streamUrl !== undefined) {
+    const { error: e3 } = await supabase.rpc('set_stream_url', {
+      p_url: input.streamUrl ? input.streamUrl.trim() : '',
+      p_stream_id: input.streamId,
+    })
+    if (e3) throw e3
   }
 }
 

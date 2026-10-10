@@ -30,6 +30,7 @@ export default function RecordStream({ scoped }) {
   const [channel, setChannel] = useState('')
   const [streamDate, setStreamDate] = useState(todayKey())
   const [title, setTitle] = useState('')
+  const [streamUrl, setStreamUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
   const [err, setErr] = useState(null)
@@ -38,7 +39,7 @@ export default function RecordStream({ scoped }) {
     setSaving(true); setErr(null); setMsg(null)
     try {
       await saveStream({
-        streamerId, platform, channel, streamDate, title,
+        streamerId, platform, channel, streamDate, title, streamUrl,
         gross: Number(gross) || 0,
         net: showNet && net !== '' ? Number(net) : null,
         shipping: showNet && shipping !== '' ? Number(shipping) : null,
@@ -48,7 +49,7 @@ export default function RecordStream({ scoped }) {
       await refresh()
       // reset
       setGross(''); setNet(''); setShipping(''); setShowNet(false)
-      setLines([{ stockItemId: '', qty: '', price: '' }]); setTitle('')
+      setLines([{ stockItemId: '', qty: '', price: '' }]); setTitle(''); setStreamUrl('')
     } catch (e) {
       setErr(e.message || 'Could not save')
     } finally { setSaving(false) }
@@ -111,6 +112,13 @@ export default function RecordStream({ scoped }) {
         </label>
         <label style={{ fontSize: 13, color: '#444', flex: 1, minWidth: 160 }}>Title (optional)<br />
           <input style={{ ...field, marginTop: 4, width: '100%' }} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. £1 starts Lights Out" />
+        </label>
+      </div>
+
+      {/* Stream URL — the share link to the VOD (quick access + proof the stream is real) */}
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ fontSize: 13, color: '#444' }}>Stream URL <span style={{ color: '#999' }}>· paste the share link to the stream</span><br />
+          <input style={{ ...field, marginTop: 4, width: '100%' }} type="url" value={streamUrl} onChange={(e) => setStreamUrl(e.target.value)} placeholder="https://whatnot.com/live/… or the platform share link" />
         </label>
       </div>
 

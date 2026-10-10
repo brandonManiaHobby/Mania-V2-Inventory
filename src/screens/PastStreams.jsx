@@ -68,6 +68,15 @@ export default function PastStreams({ scoped }) {
                 </div>
               </button>
 
+              {s.streamUrl && (
+                <div style={{ padding: '0 14px 8px', marginTop: -4 }}>
+                  <a href={s.streamUrl} target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 12, color: '#2a52be', textDecoration: 'none', fontWeight: 600 }}>
+                    ↗ Watch stream
+                  </a>
+                </div>
+              )}
+
               {open && editId !== s.id && (
                 <div style={{ borderTop: '1px solid #f0f0f0', padding: '12px 14px' }}>
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, marginBottom: 12 }}>
@@ -118,6 +127,7 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
   const [platform, setPlatform] = useState(s.platform || '')
   const [streamDate, setStreamDate] = useState(s.streamDate || todayKey())
   const [title, setTitle] = useState(s.title || '')
+  const [streamUrl, setStreamUrl] = useState(s.streamUrl || '')
   const [gross, setGross] = useState(String(s.totalSales ?? ''))
   const [showNet, setShowNet] = useState(s.net != null)
   const [net, setNet] = useState(s.net != null ? String(s.net) : '')
@@ -142,7 +152,7 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
     setBusy(true); setErr(null)
     try {
       const { editStream } = await import('../data')
-      await editStream({ streamId: s.id, streamerId, platform, streamDate, title,
+      await editStream({ streamId: s.id, streamerId, platform, streamDate, title, streamUrl,
         gross: Number(gross) || 0, net: netApplied ? Number(net) : null, shipping: showNet && shipping !== '' ? Number(shipping) : null, lines: elines })
       await onSaved()
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
@@ -160,6 +170,7 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
         </select>
         <input style={field} type="date" value={streamDate} onChange={(e) => setStreamDate(e.target.value)} />
         <input style={{ ...field, flex: 1, minWidth: 140 }} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
+        <input style={{ ...field, flex: 1, minWidth: 200 }} type="url" value={streamUrl} onChange={(e) => setStreamUrl(e.target.value)} placeholder="Stream URL (share link)" />
       </div>
       {elines.map((l, i) => (
         <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>

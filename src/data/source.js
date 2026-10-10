@@ -77,6 +77,7 @@ function normStream(r) {
     streamType: r.stream_type ?? null,
     streamStart: r.stream_start ?? null,
     streamEnd: r.stream_end ?? null,
+    streamUrl: r.stream_url ?? null,        // share link to the VOD (accountability)
     streamDate: toDateKey(r.stream_date),   // canonical local key, never UTC
     totalSales: num(r.total_sales ?? r.revenue),  // gross — full precision
     // net is streamer-entered and is the source of truth (money-engine spec).
@@ -113,6 +114,14 @@ function normDistro(r) {
     profit: num(r.profit),
     soldOn: toDateKey(r.sold_on),
     note: r.note ?? null,
+    // V2 record fields (B2B/shop + invoice). Null on legacy rows.
+    saleChannel: r.sale_channel ?? null,       // 'b2b' | 'shop'
+    customerName: r.customer_name ?? null,
+    customerVat: r.customer_vat ?? null,
+    invoiceRef: r.invoice_ref ?? null,
+    paymentStatus: r.payment_status ?? null,   // 'paid' | 'unpaid'
+    paymentDue: r.payment_due ? toDateKey(r.payment_due) : null,
+    invoicePath: r.invoice_path ?? null,
     createdAt: r.created_at ?? null,
   }
 }

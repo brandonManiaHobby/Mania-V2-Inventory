@@ -1,16 +1,16 @@
 import { useState, useMemo } from 'react'
-import { restock, returnToWarehouse, distroSale, availableQty, gbp, gbp0, int, useSource } from '../data'
+import { restock, returnToWarehouse, availableQty, int, useSource } from '../data'
 
 // ============================================================
-// MOVE STOCK (Stage 5) — hardened transfers: Restock, Return, Distro.
+// MOVE STOCK (Stage 5) — hardened transfers: Restock, Return.
 // PREVIEW-BEFORE-COMMIT on every move (before->after both sides). HARD
 // BLOCK on moving more than available. Atomic via proven RPCs. Warehouse
 // matched explicitly. This is the screen built so levels CAN'T drift.
+// (Distro sales live on their own screen now, with full B2B/invoice records.)
 // ============================================================
 const OPS = [
   { k: 'restock', label: 'Restock', dir: 'Warehouse → Streamer' },
   { k: 'return', label: 'Return', dir: 'Streamer → Warehouse' },
-  { k: 'distro', label: 'Distro sale', dir: 'Warehouse → Sold' },
 ]
 
 export default function MoveStock({ scoped }) {
@@ -18,10 +18,7 @@ export default function MoveStock({ scoped }) {
   const [op, setOp] = useState('restock')
   const [stockItemId, setStockItemId] = useState('')
   const [who, setWho] = useState('')       // streamer (restock/return)
-  const [waveNo, setWaveNo] = useState('') // distro
   const [qty, setQty] = useState('')
-  const [revenue, setRevenue] = useState('')
-  const [note, setNote] = useState('')
   const [preview, setPreview] = useState(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
@@ -29,13 +26,10 @@ export default function MoveStock({ scoped }) {
 
   const items = scoped.stockItems.filter((s) => !s.archived)
   const streamers = scoped.profiles.filter((p) => ['breaker', 'channel_lead'].includes(p.role))
-  const product = items.find((s) => s.id === stockItemId)
-  const waves = scoped.waves.filter((w) => w.stockItemId === stockItemId).sort((a, b) => a.waveNo - b.waveNo)
 
   // current levels for the preview
   const warehouseQty = stockItemId ? availableQty(scoped, { stockItemId, holderId: 'warehouse' }) : 0
   const streamerQty = (stockItemId && who) ? availableQty(scoped, { stockItemId, holderId: who }) : 0
-  const waveWarehouseQty = (stockItemId && waveNo !== '') ? availableQty(scoped, { stockItemId, holderId: 'warehouse', waveNo: Number(waveNo) }) : 0
 
   const n = Number(qty) || 0
 
@@ -58,13 +52,6 @@ export default function MoveStock({ scoped }) {
           [nameOf(who), streamerQty, streamerQty - n],
           ['Warehouse', warehouseQty, warehouseQty + n],
         ] })
-      } else {
-        if (waveNo === '') throw new Error('Pick a wave')
-        if (n > waveWarehouseQty) throw new Error(`Only ${waveWarehouseQty} of wave ${waveNo} in warehouse`)
-        setPreview({ rows: [
-          [`Warehouse (wave ${waveNo})`, waveWarehouseQty, waveWarehouseQty - n],
-          ['Sold (distro)', '—', `+${n} @ ${gbp(Number(revenue) || 0)}`],
-        ], distro: true })
       }
     } catch (e) { setErr(e.message); setPreview(null) }
   }
@@ -74,10 +61,9 @@ export default function MoveStock({ scoped }) {
     try {
       if (op === 'restock') await restock(scoped, { stockItemId, toStreamerId: who, qty: n })
       else if (op === 'return') await returnToWarehouse(scoped, { stockItemId, fromStreamerId: who, qty: n })
-      else await distroSale(scoped, { stockItemId, waveNo: Number(waveNo), qty: n, revenue: Number(revenue) || 0, note })
       setMsg('Move committed ✓')
       await refresh()
-      setPreview(null); setQty(''); setRevenue(''); setNote('')
+      setPreview(null); setQty('')
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
 
@@ -111,31 +97,12 @@ export default function MoveStock({ scoped }) {
           </select>
         </label>
 
-        {op !== 'distro' && (
-          <label style={lbl}>Streamer
-            <select style={{ ...field, marginTop: 4 }} value={who} onChange={(e) => { setWho(e.target.value); reset() }}>
-              <option value="">Select…</option>
-              {streamers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </label>
-        )}
-
-        {op === 'distro' && (
-          <>
-            <label style={lbl}>Wave
-              <select style={{ ...field, marginTop: 4 }} value={waveNo} onChange={(e) => { setWaveNo(e.target.value); reset() }}>
-                <option value="">Select…</option>
-                {waves.map((w) => <option key={w.id} value={w.waveNo}>Wave {w.waveNo} · {int(availableQty(scoped, { stockItemId, holderId: 'warehouse', waveNo: w.waveNo }))} in warehouse · {gbp(w.unitCost)}/unit</option>)}
-              </select>
-            </label>
-            <label style={lbl}>Total revenue (£)
-              <input style={{ ...field, marginTop: 4 }} type="number" value={revenue} onChange={(e) => { setRevenue(e.target.value); reset() }} />
-            </label>
-            <label style={lbl}>Note (optional)
-              <input style={{ ...field, marginTop: 4 }} value={note} onChange={(e) => setNote(e.target.value)} />
-            </label>
-          </>
-        )}
+        <label style={lbl}>Streamer
+          <select style={{ ...field, marginTop: 4 }} value={who} onChange={(e) => { setWho(e.target.value); reset() }}>
+            <option value="">Select…</option>
+            {streamers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
 
         <label style={lbl}>Quantity
           <input style={{ ...field, marginTop: 4, maxWidth: 140 }} type="number" value={qty} onChange={(e) => { setQty(e.target.value); reset() }} />
@@ -145,7 +112,7 @@ export default function MoveStock({ scoped }) {
         {stockItemId && (
           <div style={{ fontSize: 12, color: '#888' }}>
             In warehouse: <strong>{int(warehouseQty)}</strong>
-            {op !== 'distro' && who ? ` · ${nameOf(who)} has ${int(streamerQty)}` : ''}
+            {who ? ` · ${nameOf(who)} has ${int(streamerQty)}` : ''}
           </div>
         )}
       </div>
