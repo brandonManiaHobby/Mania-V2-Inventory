@@ -7,7 +7,7 @@
 // another department's / another streamer's data — it's filtered at the
 // source boundary, not hidden in the UI.
 // ============================================================
-import { capabilities, ROLE } from './roles'
+import { capabilities, ROLE } from './roles.js'
 
 // Given the full shared source + the current profile, return a SCOPED
 // view of the source — the same shape, but filtered to what this user

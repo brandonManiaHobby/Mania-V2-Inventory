@@ -72,6 +72,11 @@ function normStream(r) {
     title: r.title ?? '',
     platform: r.platform ?? null,
     channel: r.channel ?? null,
+    // department + stream_type come from the scoped view; start/end feed hoursOf.
+    department: r.department ?? r.streamer_department ?? null,
+    streamType: r.stream_type ?? null,
+    streamStart: r.stream_start ?? null,
+    streamEnd: r.stream_end ?? null,
     streamDate: toDateKey(r.stream_date),   // canonical local key, never UTC
     totalSales: num(r.total_sales ?? r.revenue),  // gross — full precision
     // net is streamer-entered and is the source of truth (money-engine spec).

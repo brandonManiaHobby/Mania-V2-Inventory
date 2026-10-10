@@ -17,11 +17,11 @@ const NAV = [
   { id: 'streamers',  label: 'Streamers',     group: 'Analytics',  needs: (c) => c.seesAnalytics },
   { id: 'products',   label: 'Products',      group: 'Analytics',  needs: (c) => c.seesAllDepartments }, // not lead — the V1 leak
   { id: 'insights',   label: 'Insights',      group: 'Analytics',  needs: (c) => c.seesAnalytics },
+  { id: 'teams',      label: 'Teams',         group: 'Analytics',  needs: (c) => c.seesAnalytics },
   { id: 'inventory',  label: 'Inventory',     group: 'Stock',      needs: (c) => c.seesInventory },
   { id: 'movestock',  label: 'Move stock',    group: 'Stock',      needs: (c) => c.canMoveStock },
-  { id: 'spend',      label: 'Spend',         group: 'Finance',    needs: (c) => c.seesAllDepartments },
-  { id: 'vatreport',  label: 'VAT report',    group: 'Reporting',  needs: (c) => c.seesAllDepartments },
-  { id: 'stockpnl',   label: 'Stock P&L',     group: 'Reporting',  needs: (c) => c.seesAllDepartments },
+  { id: 'finance',    label: 'Finance',       group: 'Finance',    needs: (c) => c.seesAllDepartments },
+  { id: 'export',     label: 'Export',        group: 'Reporting',  needs: (c) => c.seesAnalytics }, // lead sees dept-scoped
   { id: 'toppssurvey',label: 'Topps survey',  group: 'Reporting',  needs: (c) => c.seesAllDepartments },
 ]
 

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { computeMoney } from '../money'
+import { computeMoney, vatOfInclusive } from '../money'
 import { gbp, gbp0, monthKey, parseLocalDate } from '../data'
 import StatCard from '../components/StatCard'
 
@@ -9,7 +9,7 @@ import StatCard from '../components/StatCard'
 // standard purchases) per period. Second-hand = VAT-free, excluded.
 // All VAT from the money engine (inclusive VAT fraction).
 // ============================================================
-export default function VatReport({ scoped }) {
+export default function VatReport({ scoped, embedded }) {
   const [period, setPeriod] = useState('month')
 
   // OUTPUT VAT: from sales (stream lines + distro) on STANDARD products.
@@ -39,7 +39,7 @@ export default function VatReport({ scoped }) {
     // Input VAT — purchases (waves), by wave created date
     for (const w of scoped.waves) {
       if (vatOf(w.stockItemId) === 'second_hand') continue
-      const inputVat = w.totalCost - w.totalCost / 1.2 // inclusive VAT in the cost
+      const inputVat = vatOfInclusive(w.totalCost, 'standard') // inclusive VAT in the cost
       bump(inp, pkey(w.createdAt), inputVat)
     }
 
@@ -58,7 +58,7 @@ export default function VatReport({ scoped }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-        <h2 style={{ margin: 0 }}>VAT report</h2>
+        {!embedded && <h2 style={{ margin: 0 }}>VAT report</h2>}
         <div style={{ display: 'inline-flex', gap: 2, padding: 2, background: '#f0efec', borderRadius: 999 }}>
           {['month', 'day'].map((p) => (
             <button key={p} onClick={() => setPeriod(p)}

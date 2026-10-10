@@ -1,13 +1,14 @@
 import { useMemo } from 'react'
 import { gbp0, gbp, pct } from '../data'
 import StatCard from '../components/StatCard'
+import { segmentConfigFor } from '../waveSegments'
 
 // ============================================================
 // STOCK P&L (Reporting) — overall stock profit/loss across all products.
 // Total invested (wave cost) vs recovered (sales) vs remaining stock value,
 // with realised + unrealised position. One roll-up of the whole inventory.
 // ============================================================
-export default function StockPnL({ scoped }) {
+export default function StockPnL({ scoped, embedded }) {
   const rows = useMemo(() => {
     const byItem = {}
     for (const w of scoped.waves) {
@@ -21,7 +22,25 @@ export default function StockPnL({ scoped }) {
       const r = byItem[h.stockItemId]; if (!r || h.qty <= 0) continue
       r.onHandValue += h.qty * h.unitCost
     }
-    return Object.values(byItem)
+    // Visual divide: expand a banded product into two rows (by waveNo), each
+    // labelled. Invested/recovered come from that band's waves, on-hand value
+    // from that band's holdings — so the two rows sum to the product's total.
+    const out = []
+    for (const r of Object.values(byItem)) {
+      const cfg = segmentConfigFor(r.product)
+      if (!cfg) { out.push(r); continue }
+      const mk = (label, pred) => ({
+        id: r.id + '::' + label, product: label,
+        invested: scoped.waves.filter((w) => w.stockItemId === r.id && pred(w.waveNo)).reduce((a, w) => a + w.totalCost, 0),
+        recovered: scoped.waves.filter((w) => w.stockItemId === r.id && pred(w.waveNo)).reduce((a, w) => a + w.revenueRecovered, 0),
+        onHandValue: scoped.holdings.filter((h) => h.stockItemId === r.id && h.qty > 0 && pred(h.waveNo)).reduce((a, h) => a + h.qty * h.unitCost, 0),
+      })
+      const before = mk(cfg.before, (n) => Number(n) < cfg.splitAt)
+      const after = mk(cfg.after, (n) => Number(n) >= cfg.splitAt)
+      if (before.invested > 0 && after.invested > 0) out.push(before, after)
+      else out.push(r)   // not split yet — show as one
+    }
+    return out
       .map((r) => ({ ...r, realised: r.recovered - (r.invested - r.onHandValue), position: r.recovered + r.onHandValue - r.invested }))
       .filter((r) => r.invested > 0)
       .sort((a, b) => b.invested - a.invested)
@@ -34,7 +53,7 @@ export default function StockPnL({ scoped }) {
 
   return (
     <div>
-      <h2 style={{ marginTop: 0 }}>Stock P&L</h2>
+      {!embedded && <h2 style={{ marginTop: 0 }}>Stock P&L</h2>}
       <p style={{ color: '#888', fontSize: 13, marginTop: 4 }}>
         Overall position: what you invested in stock vs what's been recovered in sales plus what's still on hand.
       </p>

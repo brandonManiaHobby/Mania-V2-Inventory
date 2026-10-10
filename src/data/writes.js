@@ -133,3 +133,63 @@ export async function distroSale(source, { stockItemId, waveNo, qty, revenue, no
   })
   if (error) throw error
 }
+
+// DELETE a stream — reuses V1's delete_stream RPC (atomic: removes the
+// stream + lines and restores the stock to where it came from).
+export async function deleteStream(streamId) {
+  if (!streamId) throw new Error('No stream id')
+  const { error } = await supabase.rpc('delete_stream', { p_stream_id: streamId })
+  if (error) throw error
+}
+
+// EDIT a stream — reuses V1's edit_stream RPC, which mirrors record_stream
+// exactly (same params + p_stream_id) and does the atomic reverse-and-reapply
+// internally: it reverses the old stock movement and applies the new one, all
+// in one transaction. V2 validates first (same guards as saveStream) and
+// refreshes the shared source after, so every screen recomputes from truth.
+export async function editStream(input) {
+  if (!input.streamId) throw new Error('No stream to edit')
+  if (!input.streamerId) throw new Error('Streamer is required')
+  if (!input.streamDate) throw new Error('Stream date is required')
+  const gross = Number(input.gross) || 0
+  if (gross < 0) throw new Error('Gross cannot be negative')
+  const lines = (input.lines || []).filter((l) => l.stockItemId && Number(l.qty) > 0)
+  if (lines.length === 0) throw new Error('Add at least one product line')
+  if (input.net != null && Number(input.net) > gross) throw new Error('Net cannot exceed gross')
+
+  const p_lines = lines.map((l) => ({ stock_item_id: l.stockItemId, qty: Number(l.qty), price: Number(l.price) || 0 }))
+
+  const { error: e1 } = await supabase.rpc('edit_stream', {
+    p_stream_id: input.streamId,
+    p_streamer_id: input.streamerId,
+    p_platform: input.platform || null,
+    p_channel: input.channel || null,
+    p_stream_date: input.streamDate,
+    p_stream_start: input.streamStart || null,
+    p_stream_end: input.streamEnd || null,
+    p_stream_type: input.streamType || null,
+    p_total_sales: money2(gross),
+    p_lines,
+    p_singles_qty: 0, p_singles_avg_cost: 0, p_singles_revenue: 0,
+    p_title: input.title || null, p_mixed_types: null, p_giveaways: [],
+  })
+  if (e1) throw e1
+
+  // Re-attach V2 money fields (net/shipping/fees) after the edit.
+  if (input.net != null || input.shipping != null) {
+    const { error: e2 } = await supabase.rpc('set_stream_money', {
+      p_stream_id: input.streamId,
+      p_net: input.net != null ? money2(input.net) : null,
+      p_shipping: input.shipping != null ? money2(input.shipping) : null,
+    })
+    if (e2) throw e2
+  }
+}
+
+// REASSIGN a person's department (admin/manager). Simple profiles update;
+// RLS enforces who may do it. Refresh after so scoping/rosters update.
+export async function reassignDepartment(profileId, department) {
+  if (!profileId) throw new Error('No person selected')
+  const { error } = await supabase.from('profiles').update({ department }).eq('id', profileId)
+  if (error) throw error
+}

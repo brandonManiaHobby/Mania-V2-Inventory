@@ -1,1 +1,1 @@
-export { computeMoney, sumMoney, computeStream } from './engine'
+export { computeMoney, sumMoney, computeStream, exVat, vatOfInclusive, VAT_RATE } from './engine'

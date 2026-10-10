@@ -3,7 +3,7 @@ import { useAuth, Login } from './auth'
 import { useSource, int } from './data'
 import { scopeSource } from './scoping'
 import NavShell from './components/NavShell'
-import { Dashboard, RecordStream, Spend, Streamers, Products, MyStock, Inventory, VatReport, StockPnL, ToppsSurvey, MoveStock, Insights } from './screens'
+import { Dashboard, RecordStream, Streamers, Products, MyStock, Inventory, ToppsSurvey, MoveStock, Insights, PastStreams, Teams, Finance, Export } from './screens'
 
 // ============================================================
 // STAGE 4 — auth + nav shell.
@@ -38,24 +38,26 @@ export default function App() {
         <Dashboard scoped={scoped} />
       ) : active === 'record' ? (
         <RecordStream scoped={scoped} />
-      ) : active === 'spend' ? (
-        <Spend scoped={scoped} />
+      ) : active === 'past' ? (
+        <PastStreams scoped={scoped} />
+      ) : active === 'finance' ? (
+        <Finance scoped={scoped} />
       ) : active === 'streamers' ? (
         <Streamers scoped={scoped} />
       ) : active === 'products' ? (
         <Products scoped={scoped} />
       ) : active === 'insights' ? (
         <Insights scoped={scoped} />
+      ) : active === 'teams' ? (
+        <Teams scoped={scoped} />
       ) : active === 'mystock' ? (
         <MyStock scoped={scoped} />
       ) : active === 'inventory' ? (
         <Inventory scoped={scoped} />
       ) : active === 'movestock' ? (
         <MoveStock scoped={scoped} />
-      ) : active === 'vatreport' ? (
-        <VatReport scoped={scoped} />
-      ) : active === 'stockpnl' ? (
-        <StockPnL scoped={scoped} />
+      ) : active === 'export' ? (
+        <Export scoped={scoped} />
       ) : active === 'toppssurvey' ? (
         <ToppsSurvey scoped={scoped} />
       ) : (

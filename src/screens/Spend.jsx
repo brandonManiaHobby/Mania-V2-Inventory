@@ -18,7 +18,7 @@ function weekKey(ymd) {
   return toDateKey(monday)
 }
 
-export default function Spend({ scoped }) {
+export default function Spend({ scoped, embedded }) {
   const [period, setPeriod] = useState('month')
 
   // Each stream carries fees + shipping (nullable). Roll up.
@@ -55,7 +55,7 @@ export default function Spend({ scoped }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-        <h2 style={{ margin: 0 }}>Spend</h2>
+        {!embedded && <h2 style={{ margin: 0 }}>Spend</h2>}
         <div style={{ display: 'inline-flex', gap: 2, padding: 2, background: '#f0efec', borderRadius: 999 }}>
           {PERIODS.map((p) => (
             <button key={p.k} onClick={() => setPeriod(p.k)}

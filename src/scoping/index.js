@@ -1,2 +1,2 @@
-export { scopeSource } from './scope'
-export { capabilities, roleOf, ROLE } from './roles'
+export { scopeSource } from './scope.js'
+export { capabilities, roleOf, ROLE } from './roles.js'
