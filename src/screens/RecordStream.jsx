@@ -36,7 +36,12 @@ export default function RecordStream({ scoped }) {
   const [err, setErr] = useState(null)
 
   const save = async () => {
-    setSaving(true); setErr(null); setMsg(null)
+    setErr(null); setMsg(null)
+    if (!title.trim()) return setErr('Title is required')
+    if (!streamUrl.trim()) return setErr('Stream URL is required')
+    if (!(Number(gross) > 0)) return setErr('Gross is required')
+    if (showNet && net === '') return setErr('Net is required (or remove the net section)')
+    setSaving(true)
     try {
       await saveStream({
         streamerId, platform, channel, streamDate, title, streamUrl,
@@ -110,15 +115,15 @@ export default function RecordStream({ scoped }) {
         <label style={{ fontSize: 13, color: '#444' }}>Date<br />
           <input style={{ ...field, marginTop: 4 }} type="date" value={streamDate} onChange={(e) => setStreamDate(e.target.value)} />
         </label>
-        <label style={{ fontSize: 13, color: '#444', flex: 1, minWidth: 160 }}>Title (optional)<br />
+        <label style={{ fontSize: 13, color: '#444', flex: 1, minWidth: 160 }}>Title <span style={{ color: '#c82828' }}>*</span><br />
           <input style={{ ...field, marginTop: 4, width: '100%' }} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. £1 starts Lights Out" />
         </label>
       </div>
 
       {/* Stream URL — the share link to the VOD (quick access + proof the stream is real) */}
       <div style={{ marginBottom: 14 }}>
-        <label style={{ fontSize: 13, color: '#444' }}>Stream URL <span style={{ color: '#999' }}>· paste the share link to the stream</span><br />
-          <input style={{ ...field, marginTop: 4, width: '100%' }} type="url" value={streamUrl} onChange={(e) => setStreamUrl(e.target.value)} placeholder="https://whatnot.com/live/… or the platform share link" />
+        <label style={{ fontSize: 13, color: '#444' }}>Stream URL <span style={{ color: '#c82828' }}>*</span> <span style={{ color: '#999' }}>· paste the share link</span><br />
+          <input style={{ ...field, marginTop: 4, width: '100%' }} type="url" value={streamUrl} onChange={(e) => setStreamUrl(e.target.value)} placeholder="https://…" />
         </label>
       </div>
 
@@ -142,7 +147,7 @@ export default function RecordStream({ scoped }) {
 
       {/* Gross + optional net */}
       <div style={{ marginTop: 18, display: 'flex', gap: 16, alignItems: 'end', flexWrap: 'wrap' }}>
-        <label style={{ fontSize: 13, color: '#444' }}>Total sales (gross)<br />
+        <label style={{ fontSize: 13, color: '#444' }}>Total sales (gross) <span style={{ color: '#c82828' }}>*</span><br />
           <input style={{ ...field, width: 130, marginTop: 4 }} type="number" value={gross} onChange={(e) => setGross(e.target.value)} />
         </label>
         {!showNet && (
@@ -156,7 +161,7 @@ export default function RecordStream({ scoped }) {
       {showNet && (
         <div style={{ marginTop: 12, padding: 14, border: '1px dashed #cbb', borderRadius: 10, background: '#fcfbf9' }}>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'end' }}>
-            <label style={{ fontSize: 13, color: '#444' }}>Net (after platform fees)<br />
+            <label style={{ fontSize: 13, color: '#444' }}>Net (after platform fees) <span style={{ color: '#c82828' }}>*</span><br />
               <input style={{ ...field, width: 130, marginTop: 4 }} type="number" value={net} onChange={(e) => setNet(e.target.value)} />
             </label>
             <label style={{ fontSize: 13, color: '#444' }}>Shipping spend (optional)<br />
@@ -194,7 +199,7 @@ export default function RecordStream({ scoped }) {
 
       {/* Save */}
       <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={save} disabled={saving || !streamerId || !gross}
+        <button onClick={save} disabled={saving || !streamerId || !title.trim() || !streamUrl.trim() || !(Number(gross) > 0) || (showNet && net === '')}
           style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: '#1a7f37',
             color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
           {saving ? 'Saving…' : 'Save stream'}

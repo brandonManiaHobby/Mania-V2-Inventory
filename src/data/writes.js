@@ -13,8 +13,10 @@ export async function saveStream(input) {
   // ---- validate at the door ----
   if (!input.streamerId) throw new Error('Streamer is required')
   if (!input.streamDate) throw new Error('Stream date is required')
+  if (!input.title || !input.title.trim()) throw new Error('Title is required')
+  if (!input.streamUrl || !input.streamUrl.trim()) throw new Error('Stream URL is required')
   const gross = Number(input.gross) || 0
-  if (gross < 0) throw new Error('Gross cannot be negative')
+  if (!(gross > 0)) throw new Error('Gross is required')
   const rawLines = input.lines || []
   const lines = rawLines.filter((l) => l.stockItemId && Number(l.qty) > 0)
   if (lines.length === 0) {
