@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { computeStream, sumMoney } from '../money'
-import { gbp0, gbp, pct, monthKey, parseLocalDate } from '../data'
+import { gbp0, gbp, pct, monthKey, parseLocalDate, canonPlatform } from '../data'
 import MoneyToggle, { VIEW_FIELD } from '../components/MoneyToggle'
 
 // ============================================================
@@ -16,7 +16,7 @@ export default function Insights({ scoped }) {
   const field = VIEW_FIELD[view]
 
   const data = useMemo(() => {
-    const dimOf = (s) => dim === 'platform' ? (s.platform || '—') : dim === 'channel' ? (s.channel || '—') : (s.streamerName || '—')
+    const dimOf = (s) => dim === 'platform' ? canonPlatform(s.platform) : dim === 'channel' ? ((s.channel || '').trim() || '—') : (s.streamerName || '—')
     // month -> dim -> ladders
     const grid = {}
     const dims = new Set()

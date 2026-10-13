@@ -34,3 +34,25 @@ export function monthLabel(ym, opts = {}) {
   if (!d) return ym
   return d.toLocaleDateString('en-GB', opts.short ? { month: 'short', year: '2-digit' } : { month: 'long', year: 'numeric' })
 }
+
+// Is this product a consumable (sleeves, top loaders, team bags, labels,
+// postage/packaging)? Keyed on the product's type so warehouse stock and
+// streamer holdings can be tracked separately from breakable stock.
+const CONSUMABLE_RX = /consumable|sleeve|top ?loader|team ?bag|label|postage|mailer|packaging|penny ?sleeve/i
+export function isConsumable(item) {
+  return CONSUMABLE_RX.test(String(item?.type || ''))
+}
+
+// Canonical platform label — collapses case/whitespace variants so the same
+// platform (e.g. "eBay Live" / "Ebay live " / "EBAY LIVE") groups as ONE
+// column in Insights/Export instead of several. Unknown platforms trim through.
+export function canonPlatform(v) {
+  const t = String(v || '').trim().replace(/\s+/g, ' ')
+  if (!t) return '—'
+  const low = t.toLowerCase()
+  if (low === 'ebay live' || low === 'ebay') return 'eBay Live'
+  if (low === 'whatnot') return 'Whatnot'
+  if (low.includes('tiktok')) return 'TikTok Shop'
+  if (low === 'fanatics') return 'Fanatics'
+  return t
+}

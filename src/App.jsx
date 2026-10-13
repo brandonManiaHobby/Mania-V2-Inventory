@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useAuth, Login } from './auth'
 import { useSource, int } from './data'
-import { scopeSource } from './scoping'
-import NavShell from './components/NavShell'
-import { Dashboard, RecordStream, Streamers, Products, MyStock, Inventory, ToppsSurvey, MoveStock, Insights, PastStreams, Teams, Finance, Export, Distro, StockIntake, Admin } from './screens'
+import { scopeSource, capabilities } from './scoping'
+import NavShell, { NAV } from './components/NavShell'
+import { Dashboard, RecordStream, Streamers, Products, MyStock, Inventory, ToppsSurvey, MoveStock, Insights, PastStreams, Teams, Finance, Export, Distro, StockIntake, Admin, Consumables, StreamLogs } from './screens'
 
 // ============================================================
 // STAGE 4 — auth + nav shell.
@@ -22,16 +22,28 @@ export default function App() {
   const { status: authStatus, profile, signOut } = useAuth()
   const { source, status: srcStatus } = useSource()
   const [active, setActive] = useState('dashboard')
+  // Admin "view as role" — preview the app as another role's layout.
+  const [viewAs, setViewAs] = useState(null)
 
   if (authStatus === 'checking') return <Centered>Checking session…</Centered>
   if (authStatus === 'signedOut') return <Login />
   if (authStatus === 'noProfile') return <Centered>Signed in, but no profile found for this account. An admin needs to set up your profile.</Centered>
 
-  // Logged in with a profile -> scoped live data flows.
-  const scoped = scopeSource(source, profile)
+  const isAdmin = capabilities(profile).isAdmin
+  const shownProfile = (viewAs && isAdmin) ? { ...profile, role: viewAs } : profile
+  const scoped = scopeSource(source, shownProfile)
+
+  const enterViewAs = (role) => {
+    setViewAs(role)
+    const cap = capabilities({ ...profile, role })
+    const first = NAV.find((n) => n.needs(cap))
+    setActive(first ? first.id : 'dashboard')
+  }
+  const exitViewAs = () => { setViewAs(null); setActive('admin') }
 
   return (
-    <NavShell profile={profile} active={active} onNavigate={setActive} onSignOut={signOut}>
+    <NavShell profile={shownProfile} active={active} onNavigate={setActive} onSignOut={signOut}
+      viewAs={viewAs} onExitViewAs={exitViewAs}>
       {srcStatus !== 'ready' ? (
         <p>Loading…</p>
       ) : active === 'dashboard' ? (
@@ -51,7 +63,7 @@ export default function App() {
       ) : active === 'teams' ? (
         <Teams scoped={scoped} />
       ) : active === 'admin' ? (
-        <Admin scoped={scoped} />
+        <Admin scoped={scoped} onViewAs={isAdmin ? enterViewAs : undefined} />
       ) : active === 'mystock' ? (
         <MyStock scoped={scoped} />
       ) : active === 'inventory' ? (
@@ -62,8 +74,12 @@ export default function App() {
         <StockIntake scoped={scoped} />
       ) : active === 'distro' ? (
         <Distro scoped={scoped} />
+      ) : active === 'consumables' ? (
+        <Consumables scoped={scoped} />
       ) : active === 'export' ? (
         <Export scoped={scoped} />
+      ) : active === 'streamlogs' ? (
+        <StreamLogs scoped={scoped} />
       ) : active === 'toppssurvey' ? (
         <ToppsSurvey scoped={scoped} />
       ) : (

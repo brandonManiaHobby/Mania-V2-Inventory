@@ -326,6 +326,45 @@ export async function deleteWave({ stockItemId, waveNo, unitCost, totalCost, not
   if (error) throw error
 }
 
+// ============================================================
+// CONSUMABLE REQUESTS — streamer requests → warehouse fulfils (issues stock).
+// Fetched on its own (NOT in the core source load) and tolerant of the table
+// not existing yet, so the app never breaks if the migration hasn't run.
+// ============================================================
+export async function loadConsumableRequests() {
+  const { data, error } = await supabase
+    .from('consumable_requests')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) return { rows: [], ready: false }   // table missing / not permitted -> graceful empty
+  return { rows: data || [], ready: true }
+}
+
+export async function requestConsumable({ streamerId, stockItemId, itemText, qty, note }) {
+  if (!streamerId) throw new Error('No streamer')
+  const n = Number(qty)
+  if (!(n > 0)) throw new Error('Quantity must be more than zero')
+  if (!stockItemId && !(itemText && itemText.trim())) throw new Error('Pick a consumable or describe it')
+  const { error } = await supabase.from('consumable_requests').insert({
+    streamer_id: streamerId, stock_item_id: stockItemId || null,
+    item_text: itemText ? itemText.trim() : null, qty: n, note: note || null,
+  })
+  if (error) throw error
+}
+
+export async function fulfilConsumableRequest(id) {
+  if (!id) throw new Error('No request')
+  const { error } = await supabase.rpc('fulfil_consumable_request', { p_id: id })
+  if (error) throw error
+}
+
+export async function declineConsumableRequest(id) {
+  if (!id) throw new Error('No request')
+  const { error } = await supabase.from('consumable_requests')
+    .update({ status: 'declined' }).eq('id', id)
+  if (error) throw error
+}
+
 // UPDATE product attributes: name, type, archived, Breakers price. RLS gates
 // who may (admin/manager). Direct update — same pattern V1 uses.
 export async function updateProduct({ id, product, type, archived, breakPrice, vatTreatment }) {

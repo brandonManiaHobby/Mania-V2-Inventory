@@ -1,9 +1,12 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { computeStream } from '../money'
 import { gbp, gbp0, pct, saveStream, todayKey, useSource } from '../data'
 import StatCard from '../components/StatCard'
 
 const PLATFORMS = ['eBay Live', 'Whatnot', 'TikTok Shop', 'Fanatics']
+// Blended platform fee rates -> auto-fill net (gross × (1 − fee)). Editable.
+// Fanatics: 6% commission + 2.5% processing + £0.25/order ≈ 10% blended.
+const PLATFORM_FEE = { Fanatics: 0.10 }
 
 // ============================================================
 // RECORD STREAM (Stage 5)
@@ -31,9 +34,19 @@ export default function RecordStream({ scoped }) {
   const [streamDate, setStreamDate] = useState(todayKey())
   const [title, setTitle] = useState('')
   const [streamUrl, setStreamUrl] = useState('')
+  const [netTouched, setNetTouched] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
   const [err, setErr] = useState(null)
+
+  // Platform fee preset -> auto-fill net (until the user edits it themselves).
+  const fee = PLATFORM_FEE[platform]
+  useEffect(() => {
+    if (fee != null && !netTouched && Number(gross) > 0) {
+      setShowNet(true)
+      setNet(String(Math.round(Number(gross) * (1 - fee) * 100) / 100))
+    }
+  }, [platform, gross, fee, netTouched])
 
   const save = async () => {
     setErr(null); setMsg(null)
@@ -53,7 +66,7 @@ export default function RecordStream({ scoped }) {
       setMsg('Stream saved ✓')
       await refresh()
       // reset
-      setGross(''); setNet(''); setShipping(''); setShowNet(false)
+      setGross(''); setNet(''); setShipping(''); setShowNet(false); setNetTouched(false)
       setLines([{ stockItemId: '', qty: '', price: '' }]); setTitle(''); setStreamUrl('')
     } catch (e) {
       setErr(e.message || 'Could not save')
@@ -161,8 +174,9 @@ export default function RecordStream({ scoped }) {
       {showNet && (
         <div style={{ marginTop: 12, padding: 14, border: '1px dashed #cbb', borderRadius: 10, background: '#fcfbf9' }}>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'end' }}>
-            <label style={{ fontSize: 13, color: '#444' }}>Net (after platform fees) <span style={{ color: '#c82828' }}>*</span><br />
-              <input style={{ ...field, width: 130, marginTop: 4 }} type="number" value={net} onChange={(e) => setNet(e.target.value)} />
+            <label style={{ fontSize: 13, color: '#444' }}>Net (after platform fees) <span style={{ color: '#c82828' }}>*</span>
+              {fee != null && !netTouched && <span style={{ color: '#1a7f37', fontWeight: 600 }}> · {platform} ~{Math.round(fee * 100)}% applied</span>}<br />
+              <input style={{ ...field, width: 130, marginTop: 4 }} type="number" value={net} onChange={(e) => { setNet(e.target.value); setNetTouched(true) }} />
             </label>
             <label style={{ fontSize: 13, color: '#444' }}>Shipping spend (optional)<br />
               <input style={{ ...field, width: 130, marginTop: 4 }} type="number" value={shipping} onChange={(e) => setShipping(e.target.value)} />

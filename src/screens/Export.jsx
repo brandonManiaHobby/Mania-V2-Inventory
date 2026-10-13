@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { computeStream, computeMoney, sumMoney, exVat, vatOfInclusive } from '../money'
-import { gbp0, todayKey, parseLocalDate, toDateKey, displayDate, vatTreatmentOf, hoursOf, shortName } from '../data'
+import { gbp0, todayKey, parseLocalDate, toDateKey, displayDate, vatTreatmentOf, hoursOf, shortName, canonPlatform } from '../data'
 
 // ============================================================
 // EXPORT / REPORTS (V2 — the comprehensive, customisable export)
@@ -72,7 +72,7 @@ export default function Export({ scoped }) {
       allLadders.push(ladder)
 
       push(byChannel, s.channel || '—', ladder)
-      push(byPlatform, s.platform || '—', ladder)
+      push(byPlatform, canonPlatform(s.platform), ladder)
       push(byType, s.streamType || '—', ladder)
       const sName = s.streamerName || '—'
       push(byStreamer, sName, ladder)
@@ -99,7 +99,7 @@ export default function Export({ scoped }) {
 
       streamRows.push({
         date: s.streamDate, title: s.title || '', streamer: sName,
-        department: s.department || '', channel: s.channel || '', platform: s.platform || '',
+        department: s.department || '', channel: s.channel || '', platform: canonPlatform(s.platform),
         type: s.streamType || '', hours: hoursOf(s),
         gross: ladder.gross, net: ladder.net, vat: ladder.vatOwed, profit: ladder.trueProfit,
       })

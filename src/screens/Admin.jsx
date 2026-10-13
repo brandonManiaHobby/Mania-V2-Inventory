@@ -25,7 +25,7 @@ async function callUserFn(body) {
   return data
 }
 
-export default function Admin({ scoped }) {
+export default function Admin({ scoped, onViewAs }) {
   const { refresh } = useSource()
   const viewer = scoped.cap || {}
   const [people, setPeople] = useState([])
@@ -93,6 +93,18 @@ export default function Admin({ scoped }) {
       <h2 style={{ marginTop: 0 }}>Admin</h2>
       {msg && <div style={{ color: '#c82828', marginBottom: 10 }}>{msg}</div>}
       {pwMsg && <div style={{ color: '#1a7f37', fontWeight: 600, marginBottom: 10 }}>{pwMsg}</div>}
+
+      {onViewAs && (
+        <div style={panel}>
+          <div style={head}>View as a role</div>
+          <div style={{ fontSize: 13, color: '#777', marginBottom: 10 }}>Jump into another role’s layout to see exactly what they see. Use “Back to Admin” to return.</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {ROLES.filter(([v]) => v !== 'admin').map(([v, l]) => (
+              <button key={v} onClick={() => onViewAs(v)} style={btn('#faf9f7')}>{l}</button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <AddUser onDone={done} />
 
