@@ -1,73 +1,92 @@
+import { useEffect, useState } from 'react'
 import { capabilities } from '../scoping'
 
 // ============================================================
-// NAV SHELL — role-appropriate navigation (hardening #8).
-// Menu built from capabilities() — the ONE source of role logic.
-// Each role sees exactly their nav (per blueprint §2), nothing more.
-// Screens are empty placeholders here — structure first (Stage 5 fills them).
+// NAV SHELL — V1 visual shell (topbar + group tabs + subnav chips) over V2's
+// capability-gated nav. Each item declares the capability flag that gates it;
+// the shell groups them into V1's top tabs with a chip subnav, exactly like V1.
 // ============================================================
-
-// The full nav map. Each item declares which capability flag gates it.
-// Built once; the shell just filters by the user's caps.
 const NAV = [
   { id: 'mystock',    label: 'My Stock',      group: 'Streaming',  needs: (c) => c.hasOwnShelf },
   { id: 'record',     label: 'Record stream', group: 'Streaming',  needs: (c) => c.canRecordStream },
   { id: 'past',       label: 'Past streams',  group: 'Streaming',  needs: (c) => c.canRecordStream },
   { id: 'dashboard',  label: 'Dashboard',     group: 'Analytics',  needs: (c) => c.seesAnalytics },
   { id: 'streamers',  label: 'Streamers',     group: 'Analytics',  needs: (c) => c.seesAnalytics },
-  { id: 'products',   label: 'Products',      group: 'Analytics',  needs: (c) => c.seesAllDepartments }, // not lead — the V1 leak
+  { id: 'products',   label: 'Products',      group: 'Analytics',  needs: (c) => c.seesAllDepartments },
   { id: 'insights',   label: 'Insights',      group: 'Analytics',  needs: (c) => c.seesAnalytics },
   { id: 'teams',      label: 'Teams',         group: 'Analytics',  needs: (c) => c.seesAnalytics },
   { id: 'inventory',  label: 'Inventory',     group: 'Stock',      needs: (c) => c.seesInventory },
+  { id: 'intake',     label: 'Add stock',     group: 'Stock',      needs: (c) => c.canMoveStock },
   { id: 'movestock',  label: 'Move stock',    group: 'Stock',      needs: (c) => c.canMoveStock },
   { id: 'distro',     label: 'Distro sales',  group: 'Stock',      needs: (c) => c.canMoveStock },
   { id: 'finance',    label: 'Finance',       group: 'Finance',    needs: (c) => c.seesAllDepartments },
-  { id: 'export',     label: 'Export',        group: 'Reporting',  needs: (c) => c.seesAnalytics }, // lead sees dept-scoped
+  { id: 'export',     label: 'Export',        group: 'Reporting',  needs: (c) => c.seesAnalytics },
   { id: 'toppssurvey',label: 'Topps survey',  group: 'Reporting',  needs: (c) => c.seesAllDepartments },
+  { id: 'admin',      label: 'Admin',         group: 'Admin',      needs: (c) => c.isAdmin },
 ]
+const GROUP_ORDER = ['Streaming', 'Analytics', 'Stock', 'Finance', 'Reporting', 'Admin']
+const ROLE_LABEL = { admin: 'Admin', manager: 'Manager', lead: 'Lead', warehouse: 'Warehouse', streamer: 'Streamer' }
+
+const SunIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+const MoonIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>
+const LogoutIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>
 
 export default function NavShell({ profile, active, onNavigate, onSignOut, children }) {
   const cap = capabilities(profile)
   const items = NAV.filter((n) => n.needs(cap))
-  const groups = [...new Set(items.map((i) => i.group))]
+  const groups = GROUP_ORDER.filter((g) => items.some((i) => i.group === g))
+  const activeItem = items.find((i) => i.id === active) || items[0]
+  const activeGroup = activeItem ? activeItem.group : groups[0]
+  const groupItems = items.filter((i) => i.group === activeGroup)
+
+  // Light / dark theme — persisted, applied on the document root (V1 behaviour).
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('mania-theme') || 'light' } catch { return 'light' }
+  })
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    try { localStorage.setItem('mania-theme', theme) } catch { /* ignore */ }
+  }, [theme])
+  // Department theming hook (V1 styles key on data-dept).
+  useEffect(() => {
+    if (cap.department) document.documentElement.dataset.dept = cap.department
+    else delete document.documentElement.dataset.dept
+  }, [cap.department])
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', display: 'flex', minHeight: '100vh' }}>
-      {/* Sidebar */}
-      <nav style={{ width: 210, borderRight: '1px solid #eee', padding: '18px 14px', background: '#faf9f7' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <strong style={{ fontSize: 18 }}>Mania V2</strong>
-          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#fde68a', color: '#7c5e00', fontWeight: 700 }}>S4</span>
-        </div>
-        <div style={{ fontSize: 12, color: '#888', margintop: 2, marginBottom: 16 }}>
-          {profile?.name} · {cap.role}{cap.department ? ' · ' + cap.department : ''}
-        </div>
-
-        {groups.map((g) => (
-          <div key={g} style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', color: '#aaa', fontWeight: 700, marginBottom: 4 }}>{g}</div>
-            {items.filter((i) => i.group === g).map((i) => (
-              <button key={i.id} onClick={() => onNavigate(i.id)}
-                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', borderRadius: 8,
-                  border: 'none', cursor: 'pointer', font: 'inherit', marginBottom: 2,
-                  background: active === i.id ? '#fde68a' : 'transparent',
-                  fontWeight: active === i.id ? 700 : 400 }}>
-                {i.label}
-              </button>
-            ))}
-          </div>
-        ))}
-
-        <button onClick={onSignOut}
-          style={{ marginTop: 20, fontSize: 13, color: '#888', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 10px' }}>
-          Sign out
+    <div className="shell">
+      <header className="topbar">
+        <button className="brand-home" onClick={() => activeItem && onNavigate(items[0].id)} title="Home" aria-label="Home">
+          <img className="brand-logo" src="/mania-logo-white.png" alt="Mania Cards & Collectibles" />
         </button>
+        <div className="spacer" />
+        <div className="who">
+          {profile?.name} · {ROLE_LABEL[cap.role] || cap.role}{cap.department ? ` · ${cap.department}` : ''}
+        </div>
+        <button className="icon-btn" title="Toggle light / dark" aria-label="Toggle theme" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>
+          {theme === 'light' ? <MoonIcon /> : <SunIcon />}
+        </button>
+        <button className="icon-btn" title="Sign out" aria-label="Sign out" onClick={onSignOut}><LogoutIcon /></button>
+      </header>
+
+      <nav className="tabs">
+        {groups.map((g) => (
+          <button key={g} className={'tab' + (activeGroup === g ? ' active' : '')}
+            onClick={() => { const first = items.find((i) => i.group === g); if (first) onNavigate(first.id) }}>
+            {g}
+          </button>
+        ))}
       </nav>
 
-      {/* Content */}
-      <main style={{ flex: 1, padding: 28 }}>
-        {children}
-      </main>
+      {groupItems.length > 1 && (
+        <div className="subnav">
+          {groupItems.map((i) => (
+            <button key={i.id} className={'chip' + (active === i.id ? ' on' : '')} onClick={() => onNavigate(i.id)}>{i.label}</button>
+          ))}
+        </div>
+      )}
+
+      <main className="content">{children}</main>
     </div>
   )
 }

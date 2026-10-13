@@ -99,6 +99,7 @@ function normStreamLine(r) {
     unitCost: num(r.unit_cost),
     lineTotal: num(r.line_total),
     brokered: !!r.brokered,
+    lineKind: r.line_kind ?? 'sold',   // 'sold' | 'giveaway'
   }
 }
 

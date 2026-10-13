@@ -5,6 +5,8 @@ import MoneyToggle, { VIEW_FIELD } from '../components/MoneyToggle'
 import StatCard from '../components/StatCard'
 import MiniBars from '../components/MiniBars'
 import WaveRows from '../components/WaveRows'
+import EditProductModal from '../components/EditProductModal'
+import InspectProductModal from '../components/InspectProductModal'
 import StockPnL from './StockPnL'
 
 // ============================================================
@@ -20,6 +22,9 @@ export default function Products({ scoped }) {
   const [mode, setMode] = useState('performance')
   const [view, setView] = useState('gross')
   const [openId, setOpenId] = useState(null)
+  const [editStockId, setEditStockId] = useState(null)
+  const [inspectId, setInspectId] = useState(null)
+  const canEdit = !!scoped.cap?.seesAllDepartments
   const field = VIEW_FIELD[view]
   const vatOf = (id) => scoped.stockItems.find((s) => s.id === id)?.vatTreatment === 'second_hand' ? 'second_hand' : 'standard'
 
@@ -118,10 +123,20 @@ export default function Products({ scoped }) {
                   <div style={{ fontWeight: 700, fontSize: 18 }}>{gbp0(r.t[field.value])}</div>
                   {field.margin && <div style={{ fontSize: 12, color: '#888' }}>{pct(r.t[field.margin])}</div>}
                 </div>
+                <span role="button" title="Inspect product" onClick={(e) => { e.stopPropagation(); setInspectId(r.id) }}
+                  style={{ fontSize: 18, cursor: 'pointer', padding: '2px 6px', borderRadius: 8, color: '#666' }}>🔍</span>
               </button>
 
               {open && (
                 <div style={{ borderTop: '1px solid #f0f0f0', padding: '12px 14px' }}>
+                  {canEdit && (
+                    <div style={{ marginBottom: 10, textAlign: 'right' }}>
+                      <button onClick={() => setEditStockId(r.id)}
+                        style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #ddd', background: '#faf9f7', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+                        ✎ Edit product &amp; waves
+                      </button>
+                    </div>
+                  )}
                   <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Full P&L</div>
                   <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
                     <tbody>
@@ -175,6 +190,20 @@ export default function Products({ scoped }) {
         })}
         {rows.length === 0 && <p style={{ color: '#888' }}>No product sales in scope.</p>}
       </div>
+      {editStockId && (
+        <EditProductModal
+          product={scoped.stockItems.find((s) => s.id === editStockId)}
+          scoped={scoped}
+          onClose={() => setEditStockId(null)}
+        />
+      )}
+      {inspectId && (
+        <InspectProductModal
+          product={scoped.stockItems.find((s) => s.id === inspectId)}
+          scoped={scoped}
+          onClose={() => setInspectId(null)}
+        />
+      )}
     </div>
   )
 }

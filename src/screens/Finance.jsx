@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Spend from './Spend'
 import VatReport from './VatReport'
+import Giveaways from './Giveaways'
 
 // ============================================================
 // FINANCE (Stage 5 — merged Spend + VAT report; admin/manager only)
@@ -8,7 +9,7 @@ import VatReport from './VatReport'
 // seesAllDepartments (admin/manager, NOT lead). Reuses the existing Spend
 // and VatReport screens unchanged — pure composition, no logic duplicated.
 // ============================================================
-const TABS = [{ k: 'spend', label: 'Spend' }, { k: 'vat', label: 'VAT report' }]
+const TABS = [{ k: 'spend', label: 'Spend' }, { k: 'vat', label: 'VAT report' }, { k: 'giveaways', label: 'Giveaways' }]
 
 export default function Finance({ scoped }) {
   const [tab, setTab] = useState('spend')
@@ -27,7 +28,9 @@ export default function Finance({ scoped }) {
         </div>
       </div>
       <div style={{ marginTop: 8 }}>
-        {tab === 'spend' ? <Spend scoped={scoped} embedded /> : <VatReport scoped={scoped} embedded />}
+        {tab === 'spend' ? <Spend scoped={scoped} embedded />
+          : tab === 'vat' ? <VatReport scoped={scoped} embedded />
+          : <Giveaways scoped={scoped} embedded />}
       </div>
     </div>
   )

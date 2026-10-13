@@ -1,0 +1,1511 @@
+/* ============================================================
+   Mania Inventory — brand stylesheet
+   Sticker identity up top, disciplined data UI underneath.
+   Light is default; [data-theme="dark"] flips the tokens.
+   ============================================================ */
+
+:root {
+  --orange: #ff6a00;
+  --red: #e4002b;
+  --ink: #1a1410;
+  --paper: #fdf7f0;
+  --card: #ffffff;
+  --line: #ece2d6;
+  --muted: #7a6f64;
+  --good: #1f9d55;
+  --bad: #e4002b;
+  --shadow: 0 1px 2px rgba(26, 20, 16, 0.06), 0 8px 24px rgba(26, 20, 16, 0.06);
+  --header: linear-gradient(100deg, var(--orange), var(--red));
+}
+
+[data-theme='dark'] {
+  --orange: #ff7a2e;
+  --red: #f0475a;
+  --ink: #e9eef8;
+  --paper: #0e1420;
+  --card: #182234;
+  --line: #283449;
+  --muted: #8f9cb3;
+  --good: #34c07a;
+  --bad: #f0475a;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 10px 28px rgba(0, 0, 0, 0.45);
+  /* Header blends into the dark blue scheme rather than glowing orange */
+  --header: #141d2e;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+button { font-family: inherit; cursor: pointer; }
+input, select { font-family: inherit; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* ---------- App shell ---------- */
+.shell { min-height: 100vh; display: flex; flex-direction: column; }
+
+.topbar {
+  background: var(--header);
+  color: #fff;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 64px;
+  box-shadow: var(--shadow);
+}
+.brand {
+  font-family: 'Bangers', cursive;
+  font-size: 30px;
+  letter-spacing: 1.5px;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.18);
+}
+.brand small {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.9;
+  margin-left: 8px;
+}
+.topbar .spacer { flex: 1; }
+.topbar .who { font-size: 13px; font-weight: 600; opacity: 0.95; }
+.icon-btn {
+  background: rgba(255, 255, 255, 0.16);
+  border: none;
+  color: #fff;
+  border-radius: 9px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn:hover { background: rgba(255, 255, 255, 0.3); }
+
+/* ---------- Tabs ---------- */
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 16px 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+  overflow-x: auto;
+}
+.tab {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 14px;
+  padding: 10px 16px;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
+}
+.tab.active { color: var(--ink); border-bottom-color: var(--red); }
+
+/* ---------- Content ---------- */
+.content { padding: 22px 16px 60px; max-width: 1100px; width: 100%; margin: 0 auto; }
+.h2 { font-family: 'Archivo Black', sans-serif; font-size: 20px; margin: 0 0 16px; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+.stat {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: var(--shadow);
+}
+.stat .label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); }
+.stat .value { font-family: 'Archivo Black', sans-serif; font-size: 26px; margin-top: 6px; }
+.stat .value.pos { color: var(--good); }
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: var(--shadow);
+  margin-top: 18px;
+}
+
+/* ---------- Tables ---------- */
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  padding: 10px 12px;
+  border-bottom: 2px solid var(--line);
+}
+td { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: none; }
+.right { text-align: right; }
+
+.pill {
+  display: inline-block; font-size: 11px; font-weight: 700;
+  padding: 3px 9px; border-radius: 999px;
+  background: rgba(255, 106, 0, 0.14); color: var(--red);
+}
+.pill.profit { background: rgba(31, 157, 85, 0.16); color: var(--good); }
+
+/* ---------- Forms ---------- */
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.field label { font-size: 12px; font-weight: 700; color: var(--muted); }
+.field input, .field select {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 11px 12px;
+  font-size: 14px;
+  color: var(--ink);
+}
+.field input:focus, .field select:focus { outline: 2px solid var(--orange); border-color: var(--orange); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+.btn {
+  background: linear-gradient(100deg, var(--orange), var(--red));
+  color: #fff; border: none; border-radius: 10px;
+  padding: 12px 18px; font-weight: 800; font-size: 14px;
+  letter-spacing: 0.3px;
+}
+.btn:hover { filter: brightness(1.05); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.sm { padding: 7px 12px; font-size: 13px; }
+.btn.green { background: var(--good); }
+.btn.gray { background: var(--muted); }
+
+.note { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.error { background: rgba(228, 0, 43, 0.1); color: var(--red); padding: 10px 12px; border-radius: 9px; font-size: 13px; font-weight: 600; }
+.ok { background: rgba(31, 157, 85, 0.12); color: var(--good); padding: 10px 12px; border-radius: 9px; font-size: 13px; font-weight: 600; }
+
+/* ---------- Auth screens ---------- */
+.auth-wrap { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
+.auth-card {
+  width: 100%; max-width: 380px; background: var(--card);
+  border: 1px solid var(--line); border-radius: 18px; padding: 28px;
+  box-shadow: var(--shadow);
+}
+.auth-brand {
+  font-family: 'Bangers', cursive; font-size: 40px; letter-spacing: 2px;
+  background: linear-gradient(100deg, var(--orange), var(--red));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-align: center; margin-bottom: 4px;
+}
+.auth-sub { text-align: center; color: var(--muted); font-size: 13px; font-weight: 600; margin-bottom: 22px; }
+.link-btn { background: none; border: none; color: var(--red); font-weight: 700; font-size: 13px; padding: 0; }
+.center { text-align: center; margin-top: 16px; }
+
+.empty { text-align: center; color: var(--muted); padding: 40px 20px; font-weight: 600; }
+
+@media (max-width: 560px) { .row2 { grid-template-columns: 1fr; } }
+
+/* ---------- Out of stock ---------- */
+tr.oos td { opacity: 0.5; }
+.warn {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--red); font-weight: 700; font-size: 12px;
+}
+.warn svg { width: 15px; height: 15px; flex: none; }
+.btn.danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
+.btn.danger:hover { background: var(--red); color: #fff; }
+
+/* ---------- Logo ---------- */
+.brand-logo { height: 34px; display: block; width: auto; }
+/* The logos have very different shapes (Mania and GC Mania are wide wordmarks,
+   101 is square), so each is sized to sit with the same visual weight. */
+:root[data-dept="101"] .brand-logo { height: 48px; }
+
+/* Warehouse and Manager serve every department, so they get all three marks
+   and a gradient that runs gold (101) -> orange (Mania) -> burnt orange (GC Mania). */
+:root[data-dept="all"] .topbar {
+  background: linear-gradient(90deg, #e0a300 0%, #ff6a13 52%, #96340a 100%);
+}
+:root[data-theme="dark"][data-dept="all"] .topbar {
+  background: linear-gradient(90deg, #4a3806 0%, #6d2a0a 52%, #141d2e 100%);
+}
+.brand-group { display: flex; align-items: center; gap: 18px; }
+.brand-group img { display: block; width: auto; }
+.brand-group .bg-101 { height: 40px; }
+.brand-group .bg-mania { height: 28px; }
+.brand-group .bg-gc { height: 22px; }
+.auth-logo { width: 210px; max-width: 78%; display: block; margin: 0 auto 6px; }
+
+/* ---------- Modal ---------- */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(26, 20, 16, 0.55);
+  display: grid; place-items: center; padding: 20px; z-index: 100;
+}
+.modal {
+  width: 100%; max-width: 380px; background: var(--card);
+  border: 1px solid var(--line); border-radius: 16px; padding: 22px;
+  box-shadow: var(--shadow);
+}
+
+/* ---------- Category chips ---------- */
+.chip {
+  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 600;
+}
+.chip:hover { border-color: var(--orange); }
+.chip.on { background: linear-gradient(100deg, var(--orange), var(--red)); color: #fff; border-color: transparent; }
+
+/* ---------- Auth logo swaps with theme ---------- */
+.auth-logo-light { display: block; }
+.auth-logo-dark { display: none; }
+[data-theme='dark'] .auth-logo-light { display: none; }
+[data-theme='dark'] .auth-logo-dark { display: block; }
+
+/* ---------- Department theming ----------
+   The top bar and logo change to the person's department, so a 101 or GC Mania
+   streamer sees their own brand rather than Mania's. Admins keep Mania (house brand). */
+:root[data-dept="101"] .topbar {
+  background: linear-gradient(90deg, #d4a014 0%, #a87c0c 55%, #7a5a08 100%);
+}
+:root[data-dept="GC Mania"] .topbar {
+  background: linear-gradient(90deg, #e2551a 0%, #c2410c 55%, #8a2f08 100%);
+}
+/* Dark mode: keep the bars blended rather than shouting. */
+:root[data-theme="dark"][data-dept="101"] .topbar {
+  background: linear-gradient(90deg, #4a3806 0%, #2b2110 60%, #141d2e 100%);
+}
+:root[data-theme="dark"][data-dept="GC Mania"] .topbar {
+  background: linear-gradient(90deg, #6d2a0a 0%, #3a1d10 60%, #141d2e 100%);
+}
+
+/* Sub-navigation chips beneath the main tabs. */
+.subnav {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 10px 24px 0;
+  max-width: 1200px; margin: 0 auto; width: 100%;
+}
+
+/* ---------- Low stock ---------- */
+@keyframes lowPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+.stock-alert {
+  display: flex; align-items: flex-start; gap: 10px;
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;
+  border: 1px solid var(--orange);
+  background: rgba(255, 106, 19, 0.10);
+}
+.stock-alert.critical {
+  border-color: var(--red);
+  background: rgba(240, 71, 90, 0.10);
+}
+.stock-alert .dot {
+  width: 10px; height: 10px; border-radius: 999px; margin-top: 5px;
+  background: var(--orange); flex: 0 0 auto;
+  animation: lowPulse 1.2s ease-in-out infinite;
+}
+.stock-alert.critical .dot { background: var(--red); }
+.qty-critical { color: var(--red); font-weight: 700; }
+.qty-low { color: var(--orange); font-weight: 700; }
+
+/* ============================================================
+   PHONES AND SMALL TABLETS
+   The app is used on the floor and mid-stream, not just at a desk.
+   ============================================================ */
+@media (max-width: 820px) {
+  /* Wide tables scroll INSIDE their panel instead of dragging the whole page
+     sideways. nowrap stops columns collapsing into unreadable slivers. */
+
+  /* Stat cards stack rather than shrink to nothing. */
+  .cards { grid-template-columns: 1fr 1fr; }
+
+  /* Give the content its screen back. */
+  .shell > main { padding-left: 12px; padding-right: 12px; }
+  .tabs { padding-left: 12px; padding-right: 12px; }
+  .subnav { padding-left: 12px; padding-right: 12px; }
+
+  /* Thumb-sized targets. 44px is the accessibility minimum. */
+  .chip, .btn, .tab { min-height: 40px; }
+  .icon-btn { width: 40px; height: 40px; }
+
+  /* Inputs at 16px, or iOS zooms the page in when you tap them. */
+  input, select, textarea { font-size: 16px; }
+
+  .modal { max-width: 94vw; padding: 16px; }
+}
+
+@media (max-width: 560px) {
+  .cards { grid-template-columns: 1fr; }
+  .h2 { font-size: 20px; }
+  .brand-group { gap: 10px; }
+  .brand-group .bg-101 { height: 32px; }
+  .brand-group .bg-mania { height: 22px; }
+  .brand-group .bg-gc { height: 18px; }
+  /* The header text competes with the logos on a narrow screen. */
+  .who { font-size: 12px; }
+}
+
+@media (max-width: 820px) {
+  /* Controls go full width above the chart rather than squeezing it. */
+  .dash-rail { max-width: none !important; flex: 1 1 100% !important; }
+}
+
+/* ============================================================
+   THE JOBS DONE ON A PHONE
+   Recording a stream, checking stock out, returning it, stocktaking.
+   These happen at a stream desk or in the warehouse, one-handed.
+   ============================================================ */
+@media (max-width: 820px) {
+  /* Product lines on the stream form: a 4-column grid is unusable on a phone.
+     Product gets its own row; qty and "sold for" sit side by side beneath it.
+     !important because the grid is set inline on the element. */
+  .line-row {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    background: var(--paper);
+  }
+  .line-row > *:first-child { grid-column: 1 / -1; }   /* product picker full width */
+  .line-row > *:last-child  { grid-column: 1 / -1; }   /* remove button full width */
+
+  /* Anything typed at a stream desk needs to be hittable without aiming. */
+  .line-row input,
+  .line-row select { min-height: 44px; }
+
+  /* The sticky first column trick doesn't belong on My Stock's short tables —
+     it's for the wide analytical ones. Harmless, but keep the paper background
+     consistent so it doesn't look like a seam. */
+  table th:first-child,
+  table td:first-child { background: var(--card); }
+}
+
+/* ============================================================
+   MOBILE OVERFLOW FIX
+   The page was rendering wider than the screen, so Safari zoomed the whole
+   thing out to fit and everything became illegible. Three causes:
+     1. inputs had no width, so they rendered at browser default and burst
+        out of their grid cell
+     2. grid/flex children default to min-width:auto, so they refuse to
+        shrink and force the page wider
+     3. nothing clamped the page width, so the overflow became a zoom-out
+   ============================================================ */
+
+/* 1. Form controls fill their cell instead of overflowing it. */
+input, select, textarea, button {
+  max-width: 100%;
+  min-width: 0;
+}
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+}
+
+/* 2. Let grid and flex children actually shrink. This is the big one. */
+.row2 > *,
+.line-row > *,
+.cards > *,
+.panel > * {
+  min-width: 0;
+}
+
+/* 3. Nothing may exceed the viewport. No horizontal page scroll, no zoom-out. */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+#root {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Long product names wrap instead of stretching the layout. */
+.panel, .stat, .card { overflow-wrap: anywhere; }
+
+/* 4. The header stays put — it's the brand and the way out. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  /* Sit under the iPhone notch/status bar rather than behind it. */
+  padding-top: env(safe-area-inset-top);
+}
+
+
+/* The identity line must never push the icons off screen. It truncates; the
+   icons are the escape hatches (help, password, dark mode, logout). */
+.topbar .who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topbar .icon-btn { flex: 0 0 auto; }
+
+@media (max-width: 820px) {
+  .topbar { padding-left: 12px; padding-right: 12px; gap: 8px; }
+  /* On a phone the email is noise — the person knows who they are. Role and
+     department are what matter, so those are what survive. */
+  .topbar .who { font-size: 12px; max-width: 38vw; }
+  .brand-logo { height: 26px; }
+  :root[data-dept="101"] .brand-logo { height: 34px; }
+}
+
+@media (max-width: 700px) {
+  /* The name/email is the first thing to go — it's the least useful of the three. */
+  .who-name { display: none; }
+}
+
+/* ============================================================
+   FLUID RESPONSIVE LAYER
+   Targets 320px (iPhone SE 1st gen) up to desktop, continuously — rather
+   than tuning for one handset. Covers iPhone SE/6/7/8/X/11/12/13/14/15/16
+   in every size, and the Galaxy S/A range (360-412px), plus foldables.
+
+   The principle: sizes SCALE with the viewport instead of stepping at
+   arbitrary breakpoints, so there is no width at which it looks wrong.
+   ============================================================ */
+
+/* --- Never let anything exceed the screen, at any width --- */
+* { min-width: 0; }
+
+/* --- Fluid page padding: tight on a small phone, generous on a desktop --- */
+.content {
+  padding-left: clamp(10px, 3.5vw, 22px);
+  padding-right: clamp(10px, 3.5vw, 22px);
+  padding-top: clamp(12px, 3vw, 22px);
+  /* Clear of the iPhone home indicator. */
+  padding-bottom: calc(60px + env(safe-area-inset-bottom));
+}
+.tabs, .subnav {
+  padding-left: clamp(10px, 3.5vw, 24px);
+  padding-right: clamp(10px, 3.5vw, 24px);
+}
+.topbar {
+  padding-left: max(clamp(10px, 3.5vw, 20px), env(safe-area-inset-left));
+  padding-right: max(clamp(10px, 3.5vw, 20px), env(safe-area-inset-right));
+}
+
+/* --- Fluid type: readable on a 320px SE, not oversized on a 430px Pro Max --- */
+.h2    { font-size: clamp(18px, 4.6vw, 24px); }
+.value { font-size: clamp(20px, 5.4vw, 28px); }
+.stat .value { font-size: clamp(18px, 5vw, 26px); }
+.label { font-size: clamp(10px, 2.8vw, 11px); }
+table  { font-size: clamp(13px, 3.4vw, 14px); }
+.note  { font-size: clamp(12px, 3.2vw, 13px); }
+
+/* --- Cards never overflow, whatever the width ---
+   min(100%, 170px) is the key: below 170px wide, the card simply takes the
+   full width instead of forcing a horizontal scrollbar. */
+.cards {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  gap: clamp(8px, 2.5vw, 14px);
+}
+
+/* --- Panels breathe less on small screens --- */
+.panel { padding: clamp(12px, 3.5vw, 18px); }
+
+/* --- Everything tappable meets the 44px accessibility minimum --- */
+@media (pointer: coarse) {
+  .btn, .chip, .tab, button, select, input[type="time"], input[type="date"] {
+    min-height: 44px;
+  }
+  .icon-btn { width: 44px; height: 44px; }
+  .link-btn { padding: 6px 2px; }
+}
+
+/* --- Very small phones (SE 1st gen, 320px; Galaxy Fold closed, 280px) --- */
+@media (max-width: 380px) {
+  .cards { grid-template-columns: 1fr; }
+  .topbar { gap: 6px; }
+  .icon-btn { width: 40px; height: 40px; }
+  .brand-logo { height: 22px; }
+  :root[data-dept="101"] .brand-logo { height: 30px; }
+  .brand-group { gap: 8px; }
+  .brand-group .bg-101   { height: 26px; }
+  .brand-group .bg-mania { height: 18px; }
+  .brand-group .bg-gc    { height: 15px; }
+  /* Role · department only — no room for anything else. */
+  .topbar .who { max-width: 34vw; font-size: 11px; }
+}
+
+/* --- Landscape on a phone: the header would eat the screen --- */
+@media (max-height: 480px) and (orientation: landscape) {
+  .topbar { position: static; }
+  .content { padding-top: 10px; }
+}
+
+/* --- Login screen: dvh accounts for the Android/iOS address bar --- */
+.auth-wrap, .auth-shell { min-height: 100dvh; }
+
+/* --- Galaxy Fold (closed, 280px) and iPhone SE 1st gen (320px) --- */
+@media (max-width: 340px) {
+  .icon-btn { width: 36px; height: 36px; }
+  .icon-btn svg { width: 16px; height: 16px; }
+  .topbar { gap: 4px; }
+  /* Below this width the identity text has nowhere to go. The person knows
+     who they are; the icons are what they need. */
+  .topbar .who { display: none; }
+}
+
+/* Column headings shouldn't break mid-word ("CATEGO RY", "WAREHO USE").
+   The table already scrolls horizontally when it needs to. */
+th { white-space: nowrap; }
+
+/* Only the product name should wrap — it's the one genuinely long value. */
+td:first-child { white-space: normal; }
+
+/* ============================================================
+   TABLES THAT SCALE WITH THE WINDOW
+   Panels holding tables scroll horizontally when the window is too narrow,
+   instead of crushing columns until "£540.14" wraps to "£540. / 14".
+   This works at EVERY width — a half-width desktop window behaves like a phone.
+   ============================================================ */
+.table-panel {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.table-panel > table {
+  /* Fill the panel when there's room; scroll when there isn't. */
+  min-width: 100%;
+}
+
+/* Numbers, money, dates and headings must never break mid-value. */
+th,
+td { white-space: nowrap; }
+
+/* The product/stream name is the one thing allowed to wrap — it's the only
+   genuinely long value, and it gets a sensible minimum so it isn't a sliver. */
+td:first-child {
+  white-space: normal;
+  min-width: 180px;
+}
+
+/* Keep the name column visible while scrolling sideways, so you never lose
+   track of which row you're reading. */
+.table-panel th:first-child,
+.table-panel td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--card);
+}
+.table-panel tr.oos td:first-child { background: var(--card); }
+
+@media (max-width: 560px) {
+  td:first-child { min-width: 140px; }
+}
+
+/* Catch-all: ANY panel holding a table scrolls rather than crushing it.
+   Covers Admin, Insights, My Stock, Bulk import and anything added later,
+   so this can't regress the next time a table is introduced. */
+.panel:has(table) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.panel:has(table) > table {
+  min-width: 100%;
+}
+.panel:has(table) th:first-child,
+.panel:has(table) td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--card);
+}
+
+/* Radios and checkboxes are NOT text fields — they must never be stretched to
+   fill their container, or the dot floats in the middle of an empty box and
+   the label gets shoved across the screen. */
+input[type="radio"],
+input[type="checkbox"] {
+  width: auto !important;
+  min-width: auto !important;
+  max-width: none;
+  min-height: 0 !important;
+  flex: 0 0 auto;
+}
+
+/* Give the table room back so the action buttons aren't pushed off the edge. */
+th, td { padding-left: 10px; padding-right: 10px; }
+td:last-child, th:last-child { padding-right: 12px; }
+
+/* Compact action buttons — they were eating ~150px of table width. */
+td .btn.sm { padding: 5px 9px; font-size: 12px; }
+
+/* ============================================================
+   SEARCHABLE PICKER
+   A native <select> does type-ahead (press "c", jump to the first C). With
+   280+ products that's useless. This filters as you type instead.
+   ============================================================ */
+.search-select { position: relative; width: 100%; }
+
+.search-select > input { width: 100%; }
+.search-select > input.has-value { color: var(--text); font-weight: 600; }
+
+.ss-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 6px;
+  min-height: 0 !important;
+}
+.ss-clear:hover { color: var(--text); }
+
+.ss-list {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+}
+
+.ss-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
+}
+.ss-item:last-child { border-bottom: none; }
+.ss-item.hi { background: var(--paper); }
+.ss-item.sel { font-weight: 700; }
+
+.ss-label { flex: 1; }
+.ss-note {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.ss-empty {
+  padding: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
+@media (pointer: coarse) {
+  .ss-item { padding: 12px; min-height: 44px; }
+  .ss-list { max-height: 50vh; }
+}
+
+/* ============================================================
+   HEADER ON A PHONE
+   Logo + identity + 4 icons is too much for 390px. The identity text is the
+   least useful of the three (you know who you are), so it goes first.
+   ============================================================ */
+@media (max-width: 560px) {
+  .topbar { gap: 4px; padding-left: 8px; padding-right: 8px; }
+  .topbar .who { display: none; }        /* role · dept is on My Stock anyway */
+  .topbar .icon-btn { width: 38px; height: 38px; }
+  .topbar .icon-btn svg { width: 17px; height: 17px; }
+  .brand-logo { height: 30px; }
+  :root[data-dept="101"] .brand-logo { height: 38px; }
+}
+
+/* Tabs were wrapping onto two lines and squeezing the content. Let them
+   scroll sideways instead — the active one is always in view. */
+@media (max-width: 700px) {
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: 0 0 auto; }
+}
+
+/* Wave badge — a product re-ordered at a different price. The number is the
+   wave it's on. Only shows from wave 2, because wave 1 is just... stock. */
+.wave-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  margin-left: 5px;
+  border-radius: 5px;
+  background: var(--navy, #1f2a37);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+/* ============================================================
+   MODALS — centred, blurred, focused
+   The new modals used .modal-back, which didn't exist. They rendered inline at
+   the top of the page, so clicking a button near the bottom looked broken.
+   ============================================================ */
+.modal-back,
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(26, 20, 16, 0.5);
+  /* The point: everything behind goes soft, so there's one thing to look at. */
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  overscroll-behavior: contain;
+  animation: modal-fade 0.14s ease-out;
+}
+
+.modal-back > .modal,
+.modal-backdrop > .modal {
+  width: 100%;
+  max-width: 460px;
+  max-height: 85vh;
+  overflow-y: auto;             /* a long modal scrolls itself, not the page */
+  -webkit-overflow-scrolling: touch;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  animation: modal-rise 0.16s ease-out;
+}
+
+@keyframes modal-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes modal-rise {
+  from { opacity: 0; transform: translateY(8px) scale(0.985) }
+  to   { opacity: 1; transform: none }
+}
+
+@media (max-width: 560px) {
+  .modal-back, .modal-backdrop { padding: 12px; }
+  .modal-back > .modal, .modal-backdrop > .modal { max-height: 88vh; padding: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-back, .modal-backdrop, .modal-back > .modal { animation: none; }
+}
+
+/* Stop the page scrolling behind an open modal. */
+body:has(.modal-back),
+body:has(.modal-backdrop) { overflow: hidden; }
+
+/* ---------- Collapsible team groups ---------- */
+.team-group { margin-bottom: 10px; }
+
+.team-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  transition: background 0.12s;
+}
+.team-head:hover { background: var(--paper); }
+.team-head.open { border-radius: 12px 12px 0 0; border-bottom-color: transparent; }
+
+.team-swatch {
+  width: 10px;
+  height: 26px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+
+.team-name { font-weight: 700; font-size: 15px; }
+.team-count { color: var(--muted); font-size: 13px; }
+.team-spacer { flex: 1; }
+
+.team-caret {
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+.team-head.open .team-caret { transform: rotate(90deg); }
+
+.team-body {
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  overflow: hidden;
+}
+
+/* ============================================================
+   VIEW AS — an admin previewing another role
+   The bar is the ONLY way back, because the role being previewed has no Admin
+   tab. So it is sticky, loud, and never scrolls away.
+   ============================================================ */
+.viewas-bar {
+  position: sticky;
+  top: 0;
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px clamp(10px, 3.5vw, 20px);
+  background: var(--navy, #1f2a37);
+  color: #fff;
+  font-size: 13px;
+  border-bottom: 2px solid var(--orange);
+}
+.viewas-eye { display: inline-flex; flex: 0 0 auto; opacity: 0.85; }
+.viewas-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewas-spacer { flex: 1; }
+
+.viewas-exit {
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 12px;
+  background: var(--orange);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 34px;
+}
+.viewas-exit:hover { filter: brightness(1.08); }
+
+@media (max-width: 560px) {
+  /* On a phone the sentence goes; the button must not. */
+  .viewas-text strong::after { content: ''; }
+  .viewas-text { font-size: 12px; }
+}
+
+/* An "away" stream: one of your people ran it on ANOTHER department's channel.
+   You see the hours. The money is theirs, not yours. */
+.away-pill {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px dashed var(--muted);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.away-text {
+  color: var(--muted);
+  border-bottom: 1px dashed var(--muted);
+  cursor: help;
+}
+
+/* ============================================================
+   NEW VERSION AVAILABLE — blocking
+   Outranks every other modal (view-as bar, edit dialogs, everything). The app
+   is unusable until they reload, which is the point: old code talking to a
+   migrated database produces wrong numbers, quietly.
+   ============================================================ */
+.update-modal {
+  z-index: 9999;                 /* above modals (200) and the view-as bar (55) */
+  background: rgba(26, 20, 16, 0.62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.update-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--orange);
+  color: #fff;
+  animation: update-spin 2.6s linear infinite;
+}
+@keyframes update-spin {
+  0%, 60%  { transform: rotate(0deg) }
+  100%     { transform: rotate(360deg) }
+}
+@media (prefers-reduced-motion: reduce) { .update-icon { animation: none } }
+
+/* ---------- Streamer tiles (Teams) ---------- */
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 12px;
+}
+
+.tile {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tile.quiet { opacity: 0.68; }          /* nobody streaming shouldn't shout */
+
+.tile-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+.tile-avatar {
+  flex: 0 0 auto;
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  display: grid; place-items: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+.tile-name {
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tile-dept { color: var(--muted); font-size: 12px; }
+
+.tile-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 8px;
+}
+.tile-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.tile-value {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+.tile-value.good { color: var(--good, #2e7d32); }
+.tile-value.bad  { color: var(--bad, #c62828); }
+
+.tile-btn { width: 100%; margin-top: auto; }
+
+@media (max-width: 560px) {
+  .tile-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tile { padding: 12px; }
+  .tile-value { font-size: 15px; }
+  .tile-avatar { width: 32px; height: 32px; }
+}
+
+/* Tiles sit inside an open department, so the body needs breathing room. */
+.team-body { padding: 14px; }
+.tile-dept-select { width: 100%; margin-top: 8px; font-size: 12px; }
+
+/* Stock value on a category chip — the magnitude, not the pennies. */
+.chip-val {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.07);
+  font-size: 11px;
+  font-weight: 700;
+}
+.chip.on .chip-val { background: rgba(255, 255, 255, 0.24); }
+
+/* ---------- Department breakdown (Analytics > Department) ---------- */
+.dept-block { margin-bottom: 10px; }
+
+.dept-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 10px 2px;
+  background: none;
+  border: none;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.dept-swatch { width: 9px; height: 22px; border-radius: 3px; flex: 0 0 auto; }
+.dept-name { font-weight: 700; font-size: 14px; }
+.dept-shows { font-size: 12px; }
+.dept-spacer { flex: 1; }
+.dept-rev { font-weight: 800; font-size: 15px; }
+.dept-caret { color: var(--muted); transition: transform 0.15s; flex: 0 0 auto; }
+.dept-caret.open { transform: rotate(90deg); }
+
+.dept-bar {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--paper);
+  overflow: hidden;
+}
+.dept-bar > div { height: 100%; border-radius: 3px; }
+
+.dept-detail {
+  margin: 10px 0 4px;
+  padding: 12px 14px;
+  background: var(--paper);
+  border-radius: 10px;
+}
+.dept-sub {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.dept-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--line);
+}
+.dept-line:last-child { border-bottom: none; }
+
+.dept-total {
+  display: flex;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 2px solid var(--line);
+  font-size: 15px;
+}
+
+/* £ / % toggle on the profit card */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.mini-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.mini-toggle button {
+  border: none;
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  cursor: pointer;
+  line-height: 1.5;
+}
+.mini-toggle button.on {
+  background: var(--orange);
+  color: #fff;
+}
+
+/* ---------- Tiles: rev/hour, profit flip, metrics ---------- */
+.tile-stats { grid-template-columns: 1fr 1fr; }
+
+.tile-flip {
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.tile-flip:hover { background: var(--paper); }
+
+.tile-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+  flex-wrap: wrap;
+}
+.tile-actions .btn { flex: 1; min-width: 84px; }
+
+/* An open Metrics tile takes the full row — five columns need the room. */
+.tile-wide { grid-column: 1 / -1; }
+
+/* ---------- Deltas ---------- */
+.delta {
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.delta.up   { color: var(--good, #2e7d32); }
+.delta.down { color: var(--red, #c62828); }
+.delta.flat { color: var(--muted); font-weight: 600; }
+.delta-n { color: var(--muted); font-weight: 600; margin-left: 3px; }
+
+/* ---------- Month/period comparison table ---------- */
+.metrics-table {
+  display: grid;
+  gap: 2px;
+  overflow-x: auto;
+}
+.mt-row {
+  display: grid;
+  grid-template-columns: 130px repeat(5, minmax(84px, 1fr));
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  min-width: 560px;
+}
+.mt-row:last-child { border-bottom: none; }
+.mt-head {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding-bottom: 2px;
+}
+.mt-when { display: flex; flex-direction: column; font-size: 13px; }
+.mt-when .note { font-size: 11px; }
+.mt-cell { display: flex; flex-direction: column; gap: 1px; font-size: 14px; }
+.mt-prev { color: var(--muted); }
+.mt-vs { border-top: 2px solid var(--line); margin-top: 4px; padding-top: 10px; }
+
+/* ---------- Stream receipt ---------- */
+.receipt { max-width: 640px; width: 100%; }
+.receipt-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+.receipt-dot { width: 10px; height: 34px; border-radius: 4px; flex: 0 0 auto; }
+
+.receipt-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.receipt-meta .label { display: block; font-size: 10px; letter-spacing: 0.06em; color: var(--muted); }
+.receipt-meta strong { font-size: 13px; }
+
+.receipt-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  background: var(--paper);
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+.receipt-figures .label { display: block; font-size: 10px; letter-spacing: 0.06em; color: var(--muted); }
+.receipt-figures .fig { display: block; font-size: 17px; font-weight: 800; }
+.receipt-figures .note { font-size: 11px; }
+
+.receipt-away {
+  padding: 12px;
+  background: var(--paper);
+  border-radius: 10px;
+  border-left: 3px solid var(--orange);
+}
+
+.receipt-lines { display: flex; flex-direction: column; }
+.receipt-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.receipt-line:last-child { border-bottom: none; }
+.rl-name { flex: 1; min-width: 0; }
+.rl-figs { display: flex; gap: 12px; white-space: nowrap; font-weight: 700; }
+.rl-figs .note { font-weight: 600; }
+
+/* Wide tables must scroll rather than clip their text off the edge. */
+.table-panel { overflow-x: auto; }
+/* Tables size to their content. Only force a min-width where a table genuinely
+   needs it — a blanket 640px is what pushed Past Streams into a scrollbar. */
+.table-panel table { width: 100%; }
+
+@media (max-width: 560px) {
+  .tile-actions .btn { min-width: 0; font-size: 12px; }
+  .receipt-line { flex-wrap: wrap; }
+}
+
+/* "Opened from Teams" — makes the drill-down obvious, and easy to leave. */
+.expand-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  background: var(--paper);
+  border-left: 3px solid var(--orange);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+/* A past stream row opens its receipt. */
+.row-click { cursor: pointer; }
+.row-click:hover { background: var(--paper); }
+
+/* Cards that flip between £ and % on click. */
+.card-flip {
+  border: 1px solid var(--line);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.card-flip:hover { border-color: var(--orange); }
+
+/* ---------- Past streams: the numbers never move ---------- */
+/* Date, Streamer, Platform, Revenue, Profit and Receipt all sit in fixed,
+   nowrap columns. The break title comes last and TRUNCATES, because it's the
+   one thing that can run to 80 characters and shove everything else away. */
+.ps-stream {
+  width: 100%;            /* soak up whatever's left, after the rest have theirs */
+  max-width: 0;           /* the trick that makes ellipsis work inside a table */
+}
+.ps-date {
+  width: 1%;              /* shrink to the date's own width; slack goes to Stream */
+  white-space: nowrap;
+  padding-right: 6px;
+}
+/* The Date is the first column here, so it inherited the product-name column's
+   180px minimum and wrap. Undo both, with enough specificity to beat those rules. */
+.table-panel th.ps-date,
+.table-panel td.ps-date {
+  min-width: 0;
+  width: 1%;
+  white-space: nowrap;
+}
+.ps-title {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  font-weight: 700;
+}
+.ps-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  /* On a phone the title is the first thing to go — you're scanning for money. */
+  .ps-stream { display: none; }
+}
+
+/* Metrics opens on its own layer, like the stock peek. */
+.metrics-modal { max-width: 780px; width: 100%; }
+.metrics-modal .tile-avatar { width: 40px; height: 40px; flex: 0 0 auto; }
+
+/* ---------- Metrics modal: fits without scrolling ---------- */
+/* One row per METRIC, not per period. Five short rows fit any window; the old
+   layout was five COLUMNS wide and forced a sideways scroll on anything but a
+   big desktop. */
+.metrics-modal {
+  max-width: 720px;
+  width: 100%;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.mm-grid { display: flex; flex-direction: column; }
+
+.mm-row {
+  display: grid;
+  grid-template-columns: 88px 1fr 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.mm-grid[data-compare='1'] .mm-row {
+  grid-template-columns: 82px 1fr 1fr 1fr 1fr;
+}
+.mm-row:last-child { border-bottom: none; }
+
+.mm-head {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  padding-bottom: 4px;
+  border-bottom: 2px solid var(--line);
+}
+
+.mm-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.mm-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 15px;
+  min-width: 0;
+}
+.mm-cell strong { font-size: 16px; }
+.mm-prev, .mm-prev-h { color: var(--muted); }
+.mm-prev { font-size: 14px; }
+
+@media (max-width: 560px) {
+  .mm-row { grid-template-columns: 74px 1fr 1fr; gap: 6px; }
+  .mm-grid[data-compare='1'] .mm-row { grid-template-columns: 66px 1fr 1fr 1fr 1fr; }
+  .mm-cell { font-size: 13px; }
+  .mm-cell strong { font-size: 14px; }
+  .mm-prev { font-size: 12px; }
+  .delta { font-size: 10px; }
+}
+
+/* On a phone, comparing two people needs 4 value columns and there simply
+   isn't room. Drop the "Prev 30" columns — the ▲/▼ delta already tells you
+   which way each figure moved, so nothing is actually lost. */
+@media (max-width: 480px) {
+  .mm-grid[data-compare='1'] .mm-prev,
+  .mm-grid[data-compare='1'] .mm-prev-h { display: none; }
+  .mm-grid[data-compare='1'] .mm-row { grid-template-columns: 66px 1fr 1fr; }
+}
+
+/* ---------- "Where the time went" trail ---------- */
+.trail { display: flex; flex-direction: column; }
+.trail-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+.trail-row:last-child { border-bottom: none; }
+.trail-dot { width: 9px; height: 9px; border-radius: 3px; align-self: center; }
+.trail-ch { min-width: 0; }
+.trail-hrs { font-weight: 700; white-space: nowrap; }
+.trail-rev { white-space: nowrap; text-align: right; min-width: 72px; }
+
+/* ---------- Home button (the logo) ---------- */
+.brand-home {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+  transition: transform 0.1s, opacity 0.1s;
+}
+.brand-home:hover { opacity: 0.85; }
+.brand-home:active { transform: scale(0.97); }
+
+/* ---------- The goose ---------- */
+.goose-back {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 20, 25, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: goose-fade 0.2s ease;
+  cursor: pointer;
+}
+@keyframes goose-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.goose-card {
+  background: var(--card, #fff);
+  border-radius: 20px;
+  padding: 28px 34px 24px;
+  text-align: center;
+  max-width: 340px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  animation: goose-pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+@keyframes goose-pop {
+  from { transform: scale(0.6) translateY(20px); opacity: 0; }
+  to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.goose-svg { animation: goose-waddle 0.5s ease-in-out infinite alternate; }
+@keyframes goose-waddle {
+  from { transform: rotate(-4deg) translateX(-3px); }
+  to   { transform: rotate(4deg) translateX(3px); }
+}
+
+.goose-speech {
+  margin-top: 10px;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink, #111);
+}
+.goose-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted, #999);
+}
+
+/* Dismiss X on the low-stock alert */
+.stock-alert-x {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  padding: 4px;
+  margin: -2px -2px 0 0;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 0;
+  align-self: flex-start;
+}
+.stock-alert-x:hover { color: var(--ink); background: rgba(0, 0, 0, 0.06); }

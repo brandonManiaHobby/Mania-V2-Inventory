@@ -259,3 +259,86 @@ export async function reassignDepartment(profileId, department) {
   const { error } = await supabase.from('profiles').update({ department }).eq('id', profileId)
   if (error) throw error
 }
+
+// ============================================================
+// STOCK INTAKE + WAVE ADMINISTRATION (reuses V1's proven RPCs)
+// record_restock: creates the product if new, else adds the stock as a wave
+// (same unit cost tops up the matching wave; a new cost makes a new wave).
+// edit_wave_cost: the qty/cost fold — total_cost is ALWAYS qty×unit_cost, so
+// they can never drift; p_mode decides whether a cost change restates past
+// streams ('recompute') or only applies forward ('forward').
+// ============================================================
+
+// INTAKE: bring stock in. product (new or existing name) + type + £/unit + qty.
+export async function addStock({ product, type, cost, qty }) {
+  const p = String(product || '').trim()
+  const c = Number(cost); const q = Number(qty)
+  if (!p) throw new Error('Product name is required')
+  if (!(q > 0)) throw new Error('Quantity must be more than zero')
+  if (!(c >= 0)) throw new Error('Cost per unit must be zero or more')
+  const { error } = await supabase.rpc('record_restock', {
+    p_product: p, p_type: type || null, p_cost: money2(c), p_qty: q,
+  })
+  if (error) throw error
+}
+
+// WAVE EDIT (admin). Always passes an explicit unit cost + qty; the RPC keeps
+// total_cost = qty×unit_cost. mode: 'forward' (default) or 'recompute' (restate
+// past streams). The UI picks the qty/cost basis and computes newUnitCost.
+export async function editWaveCost({ stockItemId, waveNo, newUnitCost, newQty, mode = 'forward', note }) {
+  if (!stockItemId) throw new Error('No product')
+  if (waveNo == null) throw new Error('No wave')
+  if (!(Number(newUnitCost) >= 0)) throw new Error('Per-unit cost must be zero or more')
+  if (newQty != null && !(Number(newQty) > 0)) throw new Error('Quantity must be more than zero')
+  if (!['forward', 'recompute'].includes(mode)) throw new Error('Invalid mode')
+  // Pass the unit cost at FULL precision (no money2): the RPC derives
+  // total_cost = round(qty × unit_cost, 2), so rounding the unit here would
+  // drift the total (e.g. 16000/600 → 26.67 → 16002). Full precision keeps
+  // "total cost fixed" exact; display rounds at the edge.
+  const { error } = await supabase.rpc('edit_wave_cost', {
+    p_stock_item_id: stockItemId, p_wave_no: waveNo,
+    p_new_unit_cost: Number(newUnitCost),
+    p_new_qty: newQty != null ? Number(newQty) : null,
+    p_mode: mode, p_note: note || null,
+  })
+  if (error) throw error
+}
+
+// Preview the impact of a cost change on past streams (before committing).
+export async function waveImpactSummary(stockItemId, waveNo, newUnitCost) {
+  const { data, error } = await supabase.rpc('wave_edit_impact_summary', {
+    p_stock_item_id: stockItemId, p_wave_no: waveNo, p_new_unit_cost: money2(Number(newUnitCost) || 0),
+  })
+  if (error) throw error
+  const r = Array.isArray(data) ? data[0] : data
+  return r || { streams: 0, total_units: 0, total_swing: 0, old_unit_cost: 0 }
+}
+
+// DELETE a wave (admin). RPC refuses if any stream has recovered against it.
+export async function deleteWave({ stockItemId, waveNo, unitCost, totalCost, note }) {
+  if (!stockItemId) throw new Error('No product')
+  if (waveNo == null) throw new Error('No wave')
+  const { error } = await supabase.rpc('delete_wave', {
+    p_stock_item_id: stockItemId, p_wave_no: waveNo,
+    p_unit_cost: money2(Number(unitCost) || 0), p_total_cost: money2(Number(totalCost) || 0),
+    p_note: note || null,
+  })
+  if (error) throw error
+}
+
+// UPDATE product attributes: name, type, archived, Breakers price. RLS gates
+// who may (admin/manager). Direct update — same pattern V1 uses.
+export async function updateProduct({ id, product, type, archived, breakPrice, vatTreatment }) {
+  if (!id) throw new Error('No product')
+  const patch = {}
+  if (product !== undefined) { if (!String(product).trim()) throw new Error('Product name cannot be blank'); patch.product = String(product).trim() }
+  if (type !== undefined) patch.type = type || null
+  if (archived !== undefined) patch.archived = !!archived
+  if (breakPrice !== undefined) patch.break_price = breakPrice === '' || breakPrice == null ? null : money2(Number(breakPrice))
+  if (vatTreatment !== undefined) {
+    if (!['standard', 'second_hand'].includes(vatTreatment)) throw new Error('Invalid VAT treatment')
+    patch.vat_treatment = vatTreatment
+  }
+  const { error } = await supabase.from('stock_items').update(patch).eq('id', id)
+  if (error) throw error
+}
