@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { computeStream, computeMoney, sumMoney } from '../money'
-import { gbp0, gbp, pct, int, monthKey, parseLocalDate } from '../data'
+import { gbp0, gbp, pct, int, monthKey, parseLocalDate, todayKey } from '../data'
 import MoneyToggle, { VIEW_FIELD } from '../components/MoneyToggle'
 import StatCard from '../components/StatCard'
 import MiniBars from '../components/MiniBars'
@@ -27,28 +27,60 @@ export default function Streamers({ scoped }) {
   const field = VIEW_FIELD[view]
   const vatOf = (sid) => scoped.stockItems.find((x) => x.id === sid)?.vatTreatment === 'second_hand' ? 'second_hand' : 'standard'
 
+  // ---- customisable date range (defaults to lifetime: earliest stream -> today) ----
+  const today = todayKey()
+  const lifetimeFrom = useMemo(() => {
+    const ds = scoped.streams.map((s) => s.streamDate).filter(Boolean).sort()
+    return ds[0] || (today.slice(0, 5) + '01-01')
+  }, [scoped, today])
+  const [from, setFrom] = useState(null)   // null => lifetime
+  const [to, setTo] = useState(null)
+  const effFrom = from || lifetimeFrom
+  const effTo = to || today
+  const isLifetime = !from && !to
+  const preset = (f, t) => { setFrom(f); setTo(t) }
+
   const rows = useMemo(() => {
     const by = {}
     for (const s of scoped.streams) {
       if (!s.streamerId) continue
+      if (s.streamDate && (s.streamDate < effFrom || s.streamDate > effTo)) continue
       const lines = scoped.streamLines.filter((l) => l.streamId === s.id && !l.brokered)
       const m = computeStream({ gross: s.totalSales, net: s.net, shipping: s.shipping },
         lines.map((l) => ({ qty: l.qty, unitCost: l.unitCost, lineTotal: l.lineTotal, brokered: false, stockItemId: l.stockItemId })), vatOf)
-      const r = by[s.streamerId] || (by[s.streamerId] = { id: s.streamerId, name: s.streamerName || '—', streams: [], ladders: [], shows: 0, hours: 0 })
+      const r = by[s.streamerId] || (by[s.streamerId] = { id: s.streamerId, name: s.streamerName || '—', streams: [], ladders: [], shows: 0, hours: 0, peak: 0 })
       r.streams.push(s); r.ladders.push({ ...m, month: monthKey(s.streamDate) }); r.shows += 1; r.hours += hoursOf(s)
+      r.peak = Math.max(r.peak, Number(s.totalSales) || 0)
     }
     return Object.values(by).map((r) => ({ ...r, t: sumMoney(r.ladders), revPerHour: r.hours > 0 ? sumMoney(r.ladders).gross / r.hours : 0 }))
       .sort((a, b) => b.t[field.value] - a.t[field.value])
-  }, [scoped, field.value])
+  }, [scoped, field.value, effFrom, effTo])
 
   const grandMax = Math.max(1, ...rows.map((r) => r.t.gross))
   const totals = useMemo(() => sumMoney(rows.map((r) => r.t)), [rows])
+
+  const dateField = { padding: '6px 9px', borderRadius: 8, border: '1px solid var(--line)', font: 'inherit', fontSize: 13, background: 'var(--card)', color: 'var(--ink)' }
+  const thisYear = today.slice(0, 5) + '01-01'
+  const d90 = (() => { const d = new Date(today); d.setDate(d.getDate() - 90); return d.toISOString().slice(0, 10) })()
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
         <h2 style={{ margin: 0 }}>Streamers</h2>
         <MoneyToggle view={view} onChange={setView} />
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap', marginTop: 12 }}>
+        <label style={{ fontSize: 12, color: '#999' }}>From<br /><input type="date" style={{ ...dateField, marginTop: 4 }} value={effFrom} max={effTo} onChange={(e) => setFrom(e.target.value)} /></label>
+        <label style={{ fontSize: 12, color: '#999' }}>To<br /><input type="date" style={{ ...dateField, marginTop: 4 }} value={effTo} min={effFrom} max={today} onChange={(e) => setTo(e.target.value)} /></label>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => preset(null, null)} className={'chip' + (isLifetime ? ' on' : '')}>Lifetime</button>
+          <button onClick={() => preset(thisYear, today)} className="chip">This year</button>
+          <button onClick={() => preset(d90, today)} className="chip">90 days</button>
+        </div>
+      </div>
+      <div style={{ fontSize: 12, color: '#999', marginTop: 6 }}>
+        {isLifetime ? 'Lifetime — every stream on record' : `${effFrom} → ${effTo}`}
       </div>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
         <StatCard label={LABEL[view]} value={gbp0(totals[field.value])} sub={`${rows.length} streamers`} />
@@ -113,8 +145,21 @@ function StreamerDeep({ r, scoped, view, field, vatOf }) {
     return { monthly, delta, deltaPct, products, brokeredSales, ownedSales }
   }, [r, scoped, field.value, vatOf])
 
+  const tile = { flex: '1 1 110px', minWidth: 96, padding: '10px 12px', border: '1px solid #eee', borderRadius: 10, background: '#faf9f7' }
+  const tileLbl = { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.3, color: '#999', fontWeight: 700 }
+  const tileVal = { fontSize: 18, fontWeight: 700, marginTop: 2 }
+
   return (
     <div style={{ borderTop: '1px solid #f0f0f0', padding: '14px' }}>
+      {/* lifetime / period snapshot */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+        <div style={tile}><div style={tileLbl}>Streams</div><div style={tileVal}>{int(r.shows)}</div></div>
+        <div style={tile}><div style={tileLbl}>Hours</div><div style={tileVal}>{r.hours > 0 ? r.hours.toFixed(1) : '—'}</div></div>
+        <div style={tile}><div style={tileLbl}>Peak stream</div><div style={tileVal}>{gbp0(r.peak)}</div></div>
+        <div style={tile}><div style={tileLbl}>Avg / stream</div><div style={tileVal}>{gbp0(r.shows > 0 ? r.t.gross / r.shows : 0)}</div></div>
+        <div style={tile}><div style={tileLbl}>Rev / hour</div><div style={tileVal}>{r.hours > 0 ? gbp0(r.revPerHour) : '—'}</div></div>
+        <div style={tile}><div style={tileLbl}>Profit</div><div style={{ ...tileVal, color: r.t.trueProfit >= 0 ? '#1a7f37' : '#c82828' }}>{gbp0(r.t.trueProfit)}</div></div>
+      </div>
       {dive.delta != null && (
         <div style={{ marginBottom: 12, fontSize: 13 }}>
           <span style={{ color: '#999' }}>vs previous month: </span>
@@ -136,22 +181,28 @@ function StreamerDeep({ r, scoped, view, field, vatOf }) {
           <strong>{gbp0(dive.ownedSales)} owned</strong> · <strong>{gbp0(dive.brokeredSales)} brokered</strong>
         </div>
       )}
-      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Products sold</div>
+      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Products ran</div>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 420 }}>
+        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 560 }}>
           <thead><tr style={{ textAlign: 'right', color: '#999', fontSize: 12 }}>
-            <th style={{ textAlign: 'left' }}>Product</th><th>Units</th><th>Gross</th><th>Profit</th><th>Margin</th>
+            <th style={{ textAlign: 'left' }}>Product</th><th>Units</th><th>Gross</th><th>Cost/unit</th><th>Profit/unit</th><th>Profit</th><th>Margin</th>
           </tr></thead>
           <tbody>
-            {dive.products.map((p) => (
-              <tr key={p.name} style={{ borderTop: '1px solid #f5f5f5', textAlign: 'right' }}>
-                <td style={{ textAlign: 'left', padding: '5px 0' }}>{short(p.name)}</td>
-                <td>{int(p.units)}</td><td>{gbp0(p.t.gross)}</td>
-                <td style={{ color: p.t.trueProfit >= 0 ? '#1a7f37' : '#c82828' }}>{gbp0(p.t.trueProfit)}</td>
-                <td>{pct(p.t.netMarginPct)}</td>
-              </tr>
-            ))}
-            {dive.products.length === 0 && <tr><td colSpan={5} style={{ color: '#888', padding: 8 }}>No product lines.</td></tr>}
+            {dive.products.map((p) => {
+              const costPerUnit = p.units > 0 ? p.t.costPaid / p.units : 0
+              const profitPerUnit = p.units > 0 ? p.t.trueProfit / p.units : 0
+              return (
+                <tr key={p.name} style={{ borderTop: '1px solid #f5f5f5', textAlign: 'right' }}>
+                  <td style={{ textAlign: 'left', padding: '5px 0' }}>{short(p.name)}</td>
+                  <td>{int(p.units)}</td><td>{gbp0(p.t.gross)}</td>
+                  <td style={{ color: '#888' }}>{gbp(costPerUnit)}</td>
+                  <td style={{ color: profitPerUnit >= 0 ? '#1a7f37' : '#c82828' }}>{gbp(profitPerUnit)}</td>
+                  <td style={{ color: p.t.trueProfit >= 0 ? '#1a7f37' : '#c82828' }}>{gbp0(p.t.trueProfit)}</td>
+                  <td>{pct(p.t.netMarginPct)}</td>
+                </tr>
+              )
+            })}
+            {dive.products.length === 0 && <tr><td colSpan={7} style={{ color: '#888', padding: 8 }}>No product lines.</td></tr>}
           </tbody>
         </table>
       </div>

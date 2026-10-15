@@ -909,6 +909,20 @@ body:has(.modal-backdrop) { overflow: hidden; }
   min-height: 34px;
 }
 .viewas-exit:hover { filter: brightness(1.08); }
+.viewas-select {
+  flex: 0 0 auto;
+  border: 1px solid rgba(255,255,255,0.35);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  max-width: 180px;
+}
+.viewas-select option { color: var(--ink); background: var(--card); }
 
 @media (max-width: 560px) {
   /* On a phone the sentence goes; the button must not. */

@@ -23,6 +23,7 @@ const NAV = [
   { id: 'distro',     label: 'Distro sales',  group: 'Stock',      needs: (c) => c.canMoveStock },
   { id: 'consumables',label: 'Consumables',   group: 'Stock',      needs: (c) => c.seesInventory },
   { id: 'finance',    label: 'Finance',       group: 'Finance',    needs: (c) => c.seesAllDepartments },
+  { id: 'reports',    label: 'Report builder', group: 'Reporting', needs: (c) => c.seesAnalytics },
   { id: 'export',     label: 'Export',        group: 'Reporting',  needs: (c) => c.seesAnalytics },
   { id: 'streamlogs', label: 'Stream logs',   group: 'Reporting',  needs: (c) => c.seesAnalytics },
   { id: 'toppssurvey',label: 'Topps survey',  group: 'Reporting',  needs: (c) => c.seesAllDepartments },
@@ -40,7 +41,9 @@ const SearchIcon = () => <Ico><circle cx="11" cy="11" r="8" /><path d="M21 21l-4
 const HelpIcon = () => <Ico><circle cx="12" cy="12" r="10" /><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" /><path d="M12 17h.01" /></Ico>
 const KeyIcon = () => <Ico><path d="M21 2l-2 2m-3.5 3.5a5 5 0 1 1-7 7 5 5 0 0 1 7-7zM15 7l4 4" /></Ico>
 
-export default function NavShell({ profile, active, onNavigate, onSignOut, viewAs, onExitViewAs, children }) {
+const VIEWAS_ROLES = [['manager', 'Manager'], ['channel_lead', 'Lead'], ['warehouse', 'Warehouse'], ['breaker', 'Streamer']]
+
+export default function NavShell({ profile, active, onNavigate, onSignOut, viewAs, onViewAs, onExitViewAs, children }) {
   const cap = capabilities(profile)
   const items = NAV.filter((n) => n.needs(cap))
   const groups = GROUP_ORDER.filter((g) => items.some((i) => i.group === g))
@@ -76,6 +79,13 @@ export default function NavShell({ profile, active, onNavigate, onSignOut, viewA
         </button>
         <div className="spacer" />
         <div className="who">{profile?.name} · {ROLE_LABEL[cap.role] || cap.role}{cap.department ? ` · ${cap.department}` : ''}</div>
+        {onViewAs && (
+          <select className="viewas-select" title="View the app as another role" value={viewAs || ''}
+            onChange={(e) => { const v = e.target.value; if (!v) onExitViewAs(); else onViewAs(v) }}>
+            <option value="">View as: Admin (you)</option>
+            {VIEWAS_ROLES.map(([v, l]) => <option key={v} value={v}>View as: {l}</option>)}
+          </select>
+        )}
         {cap.seesAnalytics && <button className="icon-btn" title="Quick jump (Ctrl/Cmd-K)" aria-label="Quick jump" onClick={() => setPalette(true)}><SearchIcon /></button>}
         <button className="icon-btn" title="How this works" aria-label="Help" onClick={() => setHelp(true)}><HelpIcon /></button>
         <button className="icon-btn" title="Change password" aria-label="Change password" onClick={() => setPw(true)}><KeyIcon /></button>
