@@ -178,24 +178,25 @@ export default function Dashboard({ scoped }) {
                 ))}
               </div>
 
-              {stacked.rows.map((r) => {
+              {stacked.rows.map((r, i) => {
                 const open = openKey === r.key
+                const anchorAbove = i >= stacked.rows.length - 2 && stacked.rows.length > 2
                 return (
-                  <div key={r.key} style={{ position: 'relative', zIndex: 1 }}
+                  <div key={r.key} style={{ position: 'relative', zIndex: open ? 60 : 1 }}
                     onMouseEnter={() => setOpenKey(r.key)} onMouseLeave={() => setOpenKey((k) => (k === r.key ? null : k))}>
                     <div onClick={() => setOpenKey(open ? null : r.key)}
-                      style={{ display: 'grid', gridTemplateColumns: '60px 1fr 84px', columnGap: 10, alignItems: 'center', padding: '4px 0', cursor: 'pointer' }}>
+                      style={{ display: 'grid', gridTemplateColumns: '60px 1fr 84px', columnGap: 10, alignItems: 'center', padding: '6px 0', cursor: 'pointer' }}>
                       <div style={{ fontSize: 12, color: '#777', textAlign: 'right' }}>{r.label}</div>
-                      <div style={{ display: 'flex', height: 24, background: '#f7f6f3', borderRadius: 6, overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', height: 34, background: '#f7f6f3', borderRadius: 7, overflow: 'hidden' }}>
                         {stacked.series.filter((se) => r.parts[se.name]).map((se) => (
                           <div key={se.name} style={{ width: `${(r.parts[se.name] / stacked.axisMax) * 100}%`, background: se.colour }} />
                         ))}
                       </div>
-                      <div style={{ textAlign: 'right', fontWeight: 600, fontSize: 12 }}>{fmtMeasure(r.total)}</div>
+                      <div style={{ textAlign: 'right', fontWeight: 600, fontSize: 13 }}>{fmtMeasure(r.total)}</div>
                     </div>
 
                     {open && (
-                      <div style={{ position: 'absolute', right: 94, top: '100%', marginTop: -2, zIndex: 50, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, boxShadow: 'var(--shadow)', padding: '10px 12px', minWidth: 210 }}>
+                      <div style={{ position: 'absolute', right: 94, ...(anchorAbove ? { bottom: '100%', marginBottom: -2 } : { top: '100%', marginTop: -2 }), zIndex: 70, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.18)', padding: '10px 12px', minWidth: 220 }}>
                         <div style={{ fontWeight: 800, marginBottom: 6 }}>{r.label}</div>
                         {stacked.series.filter((se) => r.parts[se.name]).map((se) => (
                           <div key={se.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '2px 0' }}>
