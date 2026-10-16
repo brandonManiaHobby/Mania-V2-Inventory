@@ -94,13 +94,36 @@ export default function ReportBuilder({ scoped }) {
   const removeMetric = (id) => setMetricIds((l) => l.filter((x) => x !== id))
   const moveMetric = (id, dir) => setMetricIds((l) => { const i = l.indexOf(id); const j = i + dir; if (i < 0 || j < 0 || j >= l.length) return l; const n = [...l]; [n[i], n[j]] = [n[j], n[i]]; return n })
 
+  // Filter option lists are CONTEXT-AWARE: each dropdown offers only values
+  // that actually occur given the OTHER active filters + date window. So pin
+  // an entertainment streamer and the Product list shows only what they ran —
+  // no catalogue stock they never touched.
+  const linesOf = useMemo(() => {
+    const byStream = {}
+    for (const l of scoped.streamLines) {
+      if (l.brokered || l.lineKind === 'giveaway' || !l.product) continue
+      ;(byStream[l.streamId] || (byStream[l.streamId] = [])).push(shortName(l.product))
+    }
+    return byStream
+  }, [scoped])
+
   const opts = useMemo(() => {
+    const inRange = scoped.streams.filter((s) => !(s.streamDate && (s.streamDate < from || s.streamDate > to)))
+    const prods = (s) => linesOf[s.id] || []
+    const okStreamer = (s) => !fStreamer || (s.streamerName || '—') === fStreamer
+    const okChannel = (s) => !fChannel || (s.channel || '—') === fChannel
+    const okPlatform = (s) => !fPlatform || (canonPlatform(s.platform) || '—') === fPlatform
+    const okProduct = (s) => !fProduct || prods(s).includes(fProduct)
     const S = new Set(), C = new Set(), P = new Set(), PR = new Set()
-    for (const s of scoped.streams) { if (s.streamerName) S.add(s.streamerName); if (s.channel) C.add(s.channel); if (s.platform) P.add(canonPlatform(s.platform)) }
-    for (const l of scoped.streamLines) { if (l.product) PR.add(shortName(l.product)) }
+    for (const s of inRange) {
+      if (okChannel(s) && okPlatform(s) && okProduct(s) && s.streamerName) S.add(s.streamerName)
+      if (okStreamer(s) && okPlatform(s) && okProduct(s) && s.channel) C.add(s.channel)
+      if (okStreamer(s) && okChannel(s) && okProduct(s) && s.platform) P.add(canonPlatform(s.platform))
+      if (okStreamer(s) && okChannel(s) && okPlatform(s)) prods(s).forEach((p) => PR.add(p))
+    }
     const srt = (set) => [...set].sort((a, b) => a.localeCompare(b))
     return { streamers: srt(S), channels: srt(C), platforms: srt(P), products: srt(PR) }
-  }, [scoped])
+  }, [scoped, linesOf, from, to, fStreamer, fChannel, fPlatform, fProduct])
 
   const { from, to, rangeLabel } = useMemo(() => {
     const t = parseLocalDate(today), key = toDateKey
@@ -341,12 +364,13 @@ export default function ReportBuilder({ scoped }) {
                 <tr key={node.path} style={{ background: depth > 0 ? 'rgba(0,0,0,0.015)' : 'transparent' }}>
                   <td style={{ ...td, textAlign: 'left', position: 'relative' }}>
                     {depth === 0 && primaryMetric && (
-                      <span style={{ position: 'absolute', left: 0, top: 3, bottom: 3, width: `${Math.max(2, (Math.abs(primaryMetric.pick(node)) / primaryMax) * 100)}%`, background: 'rgba(255,106,0,0.10)', borderRadius: 6, zIndex: 0 }} />
+                      <span style={{ position: 'absolute', left: 0, top: 3, bottom: 3, width: `${Math.max(2, (Math.abs(primaryMetric.pick(node)) / primaryMax) * 100)}%`, background: barColour(node.key), borderRadius: 6, zIndex: 0 }} />
                     )}
                     <span style={{ position: 'relative', zIndex: 1, paddingLeft: depth * 18, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                       {hasKids ? (
                         <button onClick={() => toggleRow(node.path)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted)', font: 'inherit', width: 14, padding: 0 }}>{expanded.has(node.path) ? '▾' : '▸'}</button>
                       ) : <span style={{ width: 14, display: depth > 0 ? 'inline-block' : 'none' }} />}
+                      {depth === 0 && <span style={{ width: 9, height: 9, borderRadius: '50%', background: dotColour(node.key), flex: '0 0 auto' }} />}
                       <button onClick={() => setFocus(trail)} title="Focus this — profit by product, most-used stock, splits"
                         style={{ border: 'none', background: 'none', font: 'inherit', cursor: 'pointer', color: 'var(--ink)', fontWeight: depth === 0 ? 700 : 400, textAlign: 'left', padding: 0, textDecoration: 'underline', textDecorationColor: 'rgba(255,106,0,0.4)', textUnderlineOffset: 3 }}>
                         {node.key}
@@ -377,17 +401,25 @@ export default function ReportBuilder({ scoped }) {
 }
 
 function Filter({ label, value, set, options, field }) {
+  const list = value && !options.includes(value) ? [value, ...options] : options
   return (
     <label style={{ fontSize: 12, color: 'var(--muted)' }}>{label}<br />
       <select style={{ ...field, marginTop: 4, minWidth: 150 }} value={value} onChange={(e) => set(e.target.value)}>
         <option value="">Any {label.toLowerCase()}</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+        {list.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
     </label>
   )
 }
 
 const tagBtn = (disabled) => ({ border: 'none', background: 'none', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.3 : 0.7, font: 'inherit', fontSize: 11, padding: 0, color: 'inherit' })
+
+// Deterministic colour per entity name — same streamer/channel/platform always
+// gets the same hue. Optical only (Report builder); the Dashboard keeps its
+// blue-gross / green-net scheme untouched.
+function hueFor(str) { let h = 0; const s = String(str); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 360 }
+const dotColour = (key) => `hsl(${hueFor(key)} 62% 52%)`
+const barColour = (key) => `hsla(${hueFor(key)} 70% 52% / 0.16)`
 
 // ---- Focus panel: a full drill-to-detail for one clicked entity ----
 function FocusPanel({ constraints, records, hoursById, rangeLabel, onClose }) {
@@ -416,7 +448,10 @@ function FocusPanel({ constraints, records, hoursById, rangeLabel, onClose }) {
       <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card)', borderRadius: 14, maxWidth: 720, width: '100%', padding: 20, boxShadow: 'var(--shadow)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 10, marginBottom: 4 }}>
           <div>
-            <h3 className="h2" style={{ margin: 0, fontSize: 19 }}>{title}</h3>
+            <h3 className="h2" style={{ margin: 0, fontSize: 19, display: 'flex', alignItems: 'center', gap: 8 }}>
+              {constraints.length > 0 && <span style={{ width: 11, height: 11, borderRadius: '50%', background: dotColour(constraints[0].key), flex: '0 0 auto' }} />}
+              {title}
+            </h3>
             <div className="note" style={{ marginTop: 2 }}>{rangeLabel}</div>
           </div>
           <button onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 24, cursor: 'pointer', color: 'var(--muted)', lineHeight: 1 }}>×</button>
