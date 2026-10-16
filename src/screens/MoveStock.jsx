@@ -42,130 +42,90 @@ export default function MoveStock({ scoped }) {
 
   const n = Number(qty) || 0
 
-  const buildPreview = () => {
-    setErr(null); setMsg(null)
-    try {
-      if (!stockItemId) throw new Error('Pick a product')
-      if (!(n > 0)) throw new Error('Enter a quantity')
-      if (op === 'restock') {
-        if (!who) throw new Error('Pick a streamer')
-        if (n > warehouseQty) throw new Error(`Only ${warehouseQty} in the warehouse`)
-        setPreview({ rows: [
-          ['Warehouse', warehouseQty, warehouseQty - n],
-          [nameOf(who), streamerQty, streamerQty + n],
-        ] })
-      } else if (op === 'return') {
-        if (!who) throw new Error('Pick a streamer')
-        if (n > streamerQty) throw new Error(`They only have ${streamerQty}`)
-        setPreview({ rows: [
-          [nameOf(who), streamerQty, streamerQty - n],
-          ['Warehouse', warehouseQty, warehouseQty + n],
-        ] })
-      }
-    } catch (e) { setErr(e.message); setPreview(null) }
-  }
+  function nameOf(id) { return scoped.profiles.find((p) => p.id === id)?.name || 'Streamer' }
+  const unitsOf = (id) => scoped.holdings.filter((h) => h.holderId === id && h.qty > 0).reduce((a, h) => a + h.qty, 0)
+  const productsOf = (id) => new Set(scoped.holdings.filter((h) => h.holderId === id && h.qty > 0).map((h) => h.stockItemId)).size
+  const chosenProduct = items.find((s) => s.id === stockItemId)?.product || ''
+  const peopleOptions = useMemo(() => streamers.map((p) => ({ id: p.id, label: p.name + (p.id === scoped.cap?.userId ? ' (you)' : ''), note: `${int(unitsOf(p.id))} units on shelf` })), [streamers, scoped])
 
-  const commit = async () => {
-    setBusy(true); setErr(null)
+  const field = { padding: '9px 11px', borderRadius: 9, border: '1px solid var(--line)', font: 'inherit', background: 'var(--card)', color: 'var(--ink)', width: '100%' }
+  const stepLbl = { fontSize: 12, fontWeight: 800, color: 'var(--muted)', marginBottom: 6 }
+  const reset = () => { setErr(null); setMsg(null) }
+
+  const doMove = async () => {
+    setErr(null); setMsg(null)
+    if (!who) return setErr(op === 'restock' ? 'Pick who you’re restocking' : 'Pick whose stock to return')
+    if (!stockItemId) return setErr('Pick a product')
+    if (!(n > 0)) return setErr('Enter a quantity')
+    if (op === 'restock' && n > warehouseQty) return setErr(`Only ${warehouseQty} in the warehouse`)
+    if (op === 'return' && n > streamerQty) return setErr(`They only have ${streamerQty}`)
+    setBusy(true)
     try {
       if (op === 'restock') await restock(scoped, { stockItemId, toStreamerId: who, qty: n })
-      else if (op === 'return') await returnToWarehouse(scoped, { stockItemId, fromStreamerId: who, qty: n })
-      setMsg('Move committed ✓')
-      await refresh()
-      setPreview(null); setQty('')
+      else await returnToWarehouse(scoped, { stockItemId, fromStreamerId: who, qty: n })
+      setMsg(op === 'restock' ? `Added ${n} to ${nameOf(who)}’s shelf ✓` : `Returned ${n} to the warehouse ✓`)
+      await refresh(); setQty('')
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
 
-  function nameOf(id) { return scoped.profiles.find((p) => p.id === id)?.name || 'Streamer' }
-  const field = { padding: '8px 10px', borderRadius: 8, border: '1px solid #ddd', font: 'inherit' }
-  const reset = () => { setPreview(null); setErr(null); setMsg(null) }
-
   return (
-    <div style={{ maxWidth: 640 }}>
-      <h2 style={{ marginTop: 0 }}>Move stock</h2>
-
-      {/* Operation picker */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+    <div style={{ maxWidth: 680 }}>
+      {/* Restock / Return sub-toggle */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         {OPS.map((o) => (
-          <button key={o.k} onClick={() => { setOp(o.k); reset() }}
-            style={{ padding: '7px 14px', borderRadius: 999, cursor: 'pointer', font: 'inherit',
-              border: '1px solid ' + (op === o.k ? '#7c5e00' : '#ddd'),
-              background: op === o.k ? '#fde68a' : '#faf9f7', fontWeight: op === o.k ? 700 : 400 }}>
-            {o.label}
-          </button>
+          <button key={o.k} className={'chip' + (op === o.k ? ' on' : '')} onClick={() => { setOp(o.k); reset() }}>{o.label}</button>
         ))}
       </div>
-      <div style={{ fontSize: 12, color: '#999', marginBottom: 14 }}>{OPS.find((o) => o.k === op).dir}</div>
 
-      {/* Form */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 440 }}>
-        <div>
-          <span style={lbl}>Product</span>
-          <div style={{ marginTop: 4 }}>
-            <SearchSelect options={productOptions} value={stockItemId}
-              onChange={(id) => { setStockItemId(id); reset() }} placeholder="Search stock…" emptyText="No stock matches" />
-          </div>
+      <div className="panel" style={{ maxWidth: 560 }}>
+        <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 2 }}>{op === 'restock' ? 'Restock' : 'Return'}</div>
+        <div className="note" style={{ marginTop: 0, marginBottom: 16 }}>
+          {op === 'restock' ? 'Moves stock from the warehouse onto someone’s shelf, ready to run on a stream.' : 'Moves stock from a shelf back into the warehouse.'}
         </div>
 
-        <label style={lbl}>Streamer
-          <select style={{ ...field, marginTop: 4 }} value={who} onChange={(e) => { setWho(e.target.value); reset() }}>
-            <option value="">Select…</option>
-            {streamers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </label>
-
-        <label style={lbl}>Quantity
-          <input style={{ ...field, marginTop: 4, maxWidth: 140 }} type="number" value={qty} onChange={(e) => { setQty(e.target.value); reset() }} />
-        </label>
-
-        {/* current levels hint */}
-        {stockItemId && (
-          <div style={{ fontSize: 12, color: '#888' }}>
-            In warehouse: <strong>{int(warehouseQty)}</strong>
-            {who ? ` · ${nameOf(who)} has ${int(streamerQty)}` : ''}
+        {/* Step 1 — who */}
+        <div style={stepLbl}>1. {op === 'restock' ? 'Who are you restocking?' : 'Whose stock are you returning?'}</div>
+        <SearchSelect options={peopleOptions} value={who} onChange={(id) => { setWho(id); reset() }} placeholder="Search people…" emptyText="No people" />
+        {who && (
+          <div style={{ marginTop: 10, padding: '12px 14px', border: '1px solid var(--line)', borderRadius: 10, background: 'var(--bg)' }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.4, color: 'var(--muted)', textTransform: 'uppercase' }}>{nameOf(who)} currently {op === 'restock' ? 'have' : 'hold'}</div>
+            {stockItemId ? (
+              <div style={{ marginTop: 4 }}><strong>{int(streamerQty)}</strong> × {chosenProduct}{streamerQty === 0 ? ' — none of this product yet' : ''}</div>
+            ) : unitsOf(who) > 0 ? (
+              <div style={{ marginTop: 4 }}><strong>{int(unitsOf(who))}</strong> units across {productsOf(who)} products</div>
+            ) : (
+              <div className="note" style={{ marginTop: 4 }}>Nothing on their shelf. This will be their first stock.</div>
+            )}
           </div>
         )}
-      </div>
 
-      {err && <div style={{ color: '#c82828', marginTop: 12 }}>{err}</div>}
-      {msg && <div style={{ color: '#1a7f37', fontWeight: 600, marginTop: 12 }}>{msg}</div>}
+        {/* Step 2 — product */}
+        <div style={{ ...stepLbl, marginTop: 18 }}>2. {op === 'restock' ? 'What are you adding?' : 'What are you returning?'}</div>
+        <SearchSelect options={productOptions} value={stockItemId} onChange={(id) => { setStockItemId(id); reset() }} placeholder="Select a product…" emptyText="No stock matches" />
+        {stockItemId && (
+          <div className="note" style={{ marginTop: 6 }}>In warehouse: <strong>{int(warehouseQty)}</strong>{who ? ` · ${nameOf(who)} has ${int(streamerQty)}` : ''}</div>
+        )}
 
-      {/* Preview before commit */}
-      {!preview ? (
-        <button onClick={buildPreview}
-          style={{ marginTop: 16, padding: '10px 20px', borderRadius: 10, border: '1px solid #ddd', background: '#faf9f7', fontWeight: 600, cursor: 'pointer' }}>
-          Preview move
-        </button>
-      ) : (
-        <div style={{ marginTop: 16, padding: 16, border: '1px solid #d9820a', borderRadius: 12, background: 'rgba(253,224,138,0.15)' }}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>Confirm this move</div>
-          <table style={{ width: '100%', fontSize: 14, borderCollapse: 'collapse' }}>
-            <thead><tr style={{ color: '#999', fontSize: 12, textAlign: 'right' }}>
-              <th style={{ textAlign: 'left' }}>Holder</th><th>Before</th><th>After</th>
-            </tr></thead>
-            <tbody>
-              {preview.rows.map((r, i) => (
-                <tr key={i} style={{ borderTop: '1px solid #f0e8d0', textAlign: 'right' }}>
-                  <td style={{ textAlign: 'left', padding: '6px 0' }}>{r[0]}</td>
-                  <td>{typeof r[1] === 'number' ? int(r[1]) : r[1]}</td>
-                  <td style={{ fontWeight: 700 }}>{typeof r[2] === 'number' ? int(r[2]) : r[2]}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-            <button onClick={commit} disabled={busy}
-              style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: '#1a7f37', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
-              {busy ? 'Committing…' : 'Confirm move'}
-            </button>
-            <button onClick={() => setPreview(null)} disabled={busy}
-              style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid #ddd', background: '#fff', cursor: 'pointer' }}>
-              Cancel
-            </button>
+        {/* Step 3 — qty */}
+        <div style={{ ...stepLbl, marginTop: 18 }}>3. Quantity (units)</div>
+        <input style={field} type="number" min="1" value={qty} onChange={(e) => { setQty(e.target.value); reset() }} placeholder="0" />
+
+        {/* live before -> after */}
+        {stockItemId && who && n > 0 && (
+          <div style={{ marginTop: 10, fontSize: 13 }}>
+            {op === 'restock'
+              ? <>Warehouse <strong>{int(warehouseQty)} → {int(warehouseQty - n)}</strong> · {nameOf(who)} <strong>{int(streamerQty)} → {int(streamerQty + n)}</strong></>
+              : <>{nameOf(who)} <strong>{int(streamerQty)} → {int(streamerQty - n)}</strong> · Warehouse <strong>{int(warehouseQty)} → {int(warehouseQty + n)}</strong></>}
           </div>
-        </div>
-      )}
+        )}
+
+        {err && <div className="error" style={{ marginTop: 12 }}>{err}</div>}
+        {msg && <div className="ok" style={{ marginTop: 12 }}>{msg}</div>}
+
+        <button className="btn" onClick={doMove} disabled={busy} style={{ marginTop: 16 }}>
+          {busy ? 'Working…' : op === 'restock' ? 'Add to shelf' : 'Return to warehouse'}
+        </button>
+      </div>
     </div>
   )
 }
-const lbl = { fontSize: 13, color: '#444', display: 'block' }

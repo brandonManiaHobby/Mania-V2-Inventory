@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { gbp, gbp0, int, useSource, addStock, shortName } from '../data'
 import StatCard from '../components/StatCard'
+import SearchSelect from '../components/SearchSelect'
 
 // ============================================================
 // ADD STOCK (Stock) — bring inventory in. Reuses record_restock:
@@ -22,6 +23,12 @@ export default function StockIntake({ scoped }) {
 
   const items = useMemo(() => scoped.stockItems.filter((s) => !s.archived).sort((a, b) => a.product.localeCompare(b.product)), [scoped])
   const types = useMemo(() => [...new Set(scoped.stockItems.map((s) => s.type).filter(Boolean))].sort(), [scoped])
+  // Known products with nothing on hand anywhere (warehouse or shelves).
+  const outOfStock = useMemo(() => {
+    const onHand = {}
+    for (const h of scoped.holdings) { if (h.qty > 0) onHand[h.stockItemId] = (onHand[h.stockItemId] || 0) + h.qty }
+    return items.filter((s) => !(onHand[s.id] > 0)).sort((a, b) => a.product.localeCompare(b.product))
+  }, [items, scoped])
   const chosen = items.find((s) => s.id === existingId)
   const productName = mode === 'new' ? newName.trim() : (chosen?.product || '')
 
@@ -56,9 +63,12 @@ export default function StockIntake({ scoped }) {
 
   return (
     <div style={{ maxWidth: 720 }}>
-      <h2 style={{ marginTop: 0 }}>Add stock</h2>
+      <h2 style={{ marginTop: 0 }}>Warehouse</h2>
       <p style={{ color: '#888', fontSize: 13, marginTop: 4 }}>
-        Bring inventory into the warehouse. Same £/unit as an existing wave tops that wave up; a new £/unit starts a new wave (a reorder).
+        Pick an existing product to top up, or add a brand-new one. Same £/unit as an existing wave tops that wave up; a new £/unit starts a new wave (a reorder).
+      </p>
+      <p style={{ color: '#999', fontSize: 12, marginTop: 2 }}>
+        Count in the unit you sell it in: <strong>TCG in packs</strong> (2 booster boxes of 36 = 72), <strong>everything else in boxes</strong>. Cost is per unit — never a case or invoice total.
       </p>
 
       <div style={{ padding: 16, border: '1px solid #eee', borderRadius: 12, background: '#fff', marginTop: 8 }}>
@@ -75,12 +85,12 @@ export default function StockIntake({ scoped }) {
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end' }}>
           {mode === 'existing' ? (
-            <label style={{ fontSize: 13, color: '#444' }}>Product<br />
-              <select style={{ ...field, marginTop: 4, minWidth: 240 }} value={existingId} onChange={(e) => setExistingId(e.target.value)}>
-                <option value="">Select…</option>
-                {items.map((s) => <option key={s.id} value={s.id}>{shortName(s.product)}</option>)}
-              </select>
-            </label>
+            <div style={{ fontSize: 13, color: '#444', minWidth: 260, flex: '1 1 260px' }}>Product<br />
+              <div style={{ marginTop: 4 }}>
+                <SearchSelect options={items.map((s) => ({ id: s.id, label: shortName(s.product), note: s.type || '' }))}
+                  value={existingId} onChange={setExistingId} placeholder="Search products…" emptyText="No products" />
+              </div>
+            </div>
           ) : (
             <>
               <label style={{ fontSize: 13, color: '#444' }}>New product name<br />
@@ -118,12 +128,28 @@ export default function StockIntake({ scoped }) {
         <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={save} disabled={!canSave || saving}
             style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: canSave ? '#1a7f37' : '#ccc', color: '#fff', fontWeight: 700, cursor: canSave ? 'pointer' : 'default', opacity: saving ? 0.6 : 1 }}>
-            {saving ? 'Adding…' : 'Add to warehouse'}
+            {saving ? 'Adding…' : 'Add new wave'}
           </button>
           {msg && <span style={{ color: '#1a7f37', fontWeight: 600 }}>{msg}</span>}
           {err && <span style={{ color: '#c82828' }}>{err}</span>}
         </div>
       </div>
+
+      {/* Out of stock — known products with nothing on hand; click to top up */}
+      {outOfStock.length > 0 && (
+        <div style={{ padding: 16, border: '1px solid #eee', borderRadius: 12, background: '#fff', marginTop: 16 }}>
+          <div style={{ fontWeight: 800, marginBottom: 4 }}>Out of stock ({outOfStock.length})</div>
+          <div style={{ fontSize: 12, color: '#999', marginBottom: 10 }}>Known products with nothing on hand. Click one to top it back up.</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {outOfStock.map((s) => (
+              <button key={s.id} onClick={() => { setMode('existing'); setExistingId(s.id); setErr(null); setMsg(null) }}
+                style={{ fontSize: 12, padding: '4px 10px', borderRadius: 999, border: '1px solid var(--line)', background: existingId === s.id ? 'rgba(255,106,0,0.10)' : 'var(--card)', color: 'var(--ink)', cursor: 'pointer' }}>
+                {shortName(s.product)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -61,7 +61,21 @@ export default function Streamers({ scoped }) {
 
   const dateField = { padding: '6px 9px', borderRadius: 8, border: '1px solid var(--line)', font: 'inherit', fontSize: 13, background: 'var(--card)', color: 'var(--ink)' }
   const thisYear = today.slice(0, 5) + '01-01'
-  const d90 = (() => { const d = new Date(today); d.setDate(d.getDate() - 90); return d.toISOString().slice(0, 10) })()
+  const shift = (base, n) => { const d = new Date(base); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10) }
+  const monday = (() => { const d = new Date(today); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return d.toISOString().slice(0, 10) })()
+  const lastMon = shift(monday, -7), lastSun = shift(monday, -1), monthStart = today.slice(0, 8) + '01'
+  const isRange = (f, t) => !isLifetime && effFrom === f && effTo === t
+  const PRESETS = [
+    ['This week', monday, today], ['Last week', lastMon, lastSun], ['2 weeks', lastMon, today],
+    ['This month', monthStart, today], ['This year', thisYear, today],
+  ]
+
+  // Highlight tiles — who's leading on each dimension (period-aware).
+  const best = (key) => rows.length ? rows.reduce((a, b) => (b[key] > a[key] ? b : a)) : null
+  const topEarner = rows[0]
+  const mostHours = best('hours')
+  const mostStreams = best('shows')
+  const bestMargin = rows.filter((r) => r.shows > 0).sort((a, b) => b.t.netMarginPct - a.t.netMarginPct)[0]
 
   return (
     <div>
@@ -73,10 +87,11 @@ export default function Streamers({ scoped }) {
       <div style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap', marginTop: 12 }}>
         <label style={{ fontSize: 12, color: '#999' }}>From<br /><input type="date" style={{ ...dateField, marginTop: 4 }} value={effFrom} max={effTo} onChange={(e) => setFrom(e.target.value)} /></label>
         <label style={{ fontSize: 12, color: '#999' }}>To<br /><input type="date" style={{ ...dateField, marginTop: 4 }} value={effTo} min={effFrom} max={today} onChange={(e) => setTo(e.target.value)} /></label>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {PRESETS.map(([label, f, t]) => (
+            <button key={label} onClick={() => preset(f, t)} className={'chip' + (isRange(f, t) ? ' on' : '')}>{label}</button>
+          ))}
           <button onClick={() => preset(null, null)} className={'chip' + (isLifetime ? ' on' : '')}>Lifetime</button>
-          <button onClick={() => preset(thisYear, today)} className="chip">This year</button>
-          <button onClick={() => preset(d90, today)} className="chip">90 days</button>
         </div>
       </div>
       <div style={{ fontSize: 12, color: '#999', marginTop: 6 }}>
@@ -87,6 +102,25 @@ export default function Streamers({ scoped }) {
         <StatCard label="Fees paid" value={gbp0(totals.fees)} accent="#c0392b" />
         <StatCard label="True profit" value={gbp0(totals.trueProfit)} accent="#1a7f37" sub={`${pct(totals.netMarginPct)} net margin`} />
       </div>
+
+      {/* Highlight tiles — who's leading */}
+      {rows.length > 0 && (
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 14 }}>
+          <Highlight label="🏆 Top earner" name={topEarner?.name} detail={topEarner ? gbp0(topEarner.t[field.value]) : '—'} />
+          <Highlight label="⏱ Most hours" name={mostHours?.name} detail={mostHours ? `${mostHours.hours.toFixed(1)}h` : '—'} />
+          <Highlight label="📺 Most streams" name={mostStreams?.name} detail={mostStreams ? `${mostStreams.shows} shows` : '—'} />
+          <Highlight label="📈 Best margin" name={bestMargin?.name} detail={bestMargin ? pct(bestMargin.t.netMarginPct) : '—'} />
+        </div>
+      )}
+
+      {/* Everyone at a glance — one bar per streamer */}
+      {rows.length > 0 && (
+        <div className="panel" style={{ marginTop: 14 }}>
+          <div style={{ fontWeight: 700, marginBottom: 10 }}>Everyone — {LABEL[view].toLowerCase()}</div>
+          <BarsChart labels={rows.map((r) => short(r.name))} values={rows.map((r) => r.t[field.value])} formatY={gbp0} showProjection={false} height={220} />
+        </div>
+      )}
+
       <div style={{ fontSize: 12, color: '#999', marginTop: 16, marginBottom: 6 }}>
         Ranked by {LABEL[view].toLowerCase()} · bars = gross (blue) vs net (green) · tap for the deep dive
       </div>
@@ -205,6 +239,17 @@ function StreamerDeep({ r, scoped, view, field, vatOf }) {
           </tbody>
         </table>
       </div>
+    </div>
+  )
+}
+
+// Highlight tile — who leads a dimension this period.
+function Highlight({ label, name, detail }) {
+  return (
+    <div style={{ flex: '1 1 150px', minWidth: 140, padding: '12px 14px', border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)', boxShadow: 'var(--shadow)' }}>
+      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.3, color: 'var(--muted)', fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 16, fontWeight: 800, marginTop: 4 }}>{name || '—'}</div>
+      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>{detail}</div>
     </div>
   )
 }
