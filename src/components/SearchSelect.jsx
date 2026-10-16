@@ -16,6 +16,8 @@ export default function SearchSelect({
   placeholder = 'Search…',
   disabled = false,
   emptyText = 'No matches',
+  onCreate = null,            // (name) => void — lets the typed term become a new entry
+  createLabel = 'Add new',
 }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
@@ -97,7 +99,14 @@ export default function SearchSelect({
 
       {open && !disabled && (
         <div className="ss-list">
-          {matches.length === 0 && <div className="ss-empty">{emptyText}</div>}
+          {onCreate && q.trim() && !options.some((o) => o.label.toLowerCase() === q.trim().toLowerCase()) && (
+            <button type="button" className="ss-item ss-create" onMouseEnter={() => setHi(-1)}
+              onClick={() => { onCreate(q.trim()); setOpen(false); setQ('') }}
+              style={{ color: 'var(--orange)', fontWeight: 700 }}>
+              <span className="ss-label">+ {createLabel} “{q.trim()}”</span>
+            </button>
+          )}
+          {matches.length === 0 && !onCreate && <div className="ss-empty">{emptyText}</div>}
           {matches.slice(0, 60).map((o, i) => (
             <button
               type="button"

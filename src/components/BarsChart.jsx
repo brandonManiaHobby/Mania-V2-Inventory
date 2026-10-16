@@ -23,10 +23,10 @@ export default function BarsChart({ labels = [], values = [], formatY = (v) => v
 
   const max = Math.max(1, ...values, ...(projection || []))
   const padL = 46, padB = 24, padT = 8, padR = 10
-  const W = Math.max(320, n * 54), H = height
+  const W = Math.max(320, n * 60), H = height
   const plotW = W - padL - padR, plotH = H - padT - padB
   const band = plotW / n
-  const barW = Math.min(38, band * 0.6)
+  const barW = Math.min(52, band * 0.66)
   const cx = (i) => padL + band * i + band / 2
   const y = (v) => padT + plotH - (v / max) * plotH
   const ticks = 4

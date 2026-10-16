@@ -232,7 +232,7 @@ export default function Dashboard({ scoped }) {
 
       {/* Cursor-following tooltip for the contribution chart */}
       {tip && (
-        <div style={{ position: 'fixed', left: Math.min(tip.x + 16, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 240), top: tip.y + 16, zIndex: 80, pointerEvents: 'none', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', padding: '10px 12px', minWidth: 210 }}>
+        <div style={{ position: 'fixed', left: Math.min(tip.x + 12, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 200), top: Math.min(tip.y + 12, (typeof window !== 'undefined' ? window.innerHeight : 800) - 130), zIndex: 80, pointerEvents: 'none', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', padding: '9px 11px', minWidth: 180 }}>
           <div style={{ fontWeight: 800, marginBottom: 6 }}>{tip.row.label}</div>
           {stacked.series.filter((se) => tip.row.parts[se.name]).map((se) => (
             <div key={se.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '2px 0' }}>

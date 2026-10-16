@@ -14,12 +14,15 @@ const LVL_COLOUR = { critical: '#c82828', low: '#c0531f', out: '#999', ok: undef
 // activity log of recent stock movements. Stock-level (no money toggle).
 // ============================================================
 const short = (p) => String(p).replace(/^Pokemon TCG /, '').replace(/^Topps® /, '').replace(/^Topps /, '')
+// Compact money for the category filter chips (£37k / £1.3m), V1 parity.
+const shortMoney = (n) => { const v = Number(n || 0); return v >= 1000 ? '£' + Math.round(v / 1000) + 'k' : '£' + Math.round(v) }
 
 export default function Inventory({ scoped }) {
   const [openId, setOpenId] = useState(null)
   const [inspectId, setInspectId] = useState(null)
   const [editStockId, setEditStockId] = useState(null)
   const [q, setQ] = useState('')
+  const [cat, setCat] = useState('all')      // category filter chip
   const [tab, setTab] = useState('stock') // stock | activity
   const canEdit = !!scoped.cap?.isAdmin || !!scoped.cap?.isManager
 
@@ -51,7 +54,20 @@ export default function Inventory({ scoped }) {
     return { rows: visible, oversold, groups }
   }, [scoped, q])
 
-  const totals = data.rows.reduce((a, r) => ({ value: a.value + r.value, warehouse: a.warehouse + r.warehouse, withStreamers: a.withStreamers + r.withStreamers }), { value: 0, warehouse: 0, withStreamers: 0 })
+  // Category values power the filter chips — computed across everything (not
+  // the current chip), so each chip always shows its own worth.
+  const catValues = useMemo(() => {
+    const m = { __all: 0 }
+    for (const g of data.groups) { m[g.category] = g.value; m.__all += g.value }
+    return m
+  }, [data])
+  const shownGroups = cat === 'all' ? data.groups : data.groups.filter((g) => g.category === cat)
+  const totals = shownGroups.reduce((a, g) => ({
+    value: a.value + g.value,
+    warehouse: a.warehouse + g.items.reduce((x, r) => x + r.warehouse, 0),
+    withStreamers: a.withStreamers + g.items.reduce((x, r) => x + r.withStreamers, 0),
+    products: a.products + g.items.length,
+  }), { value: 0, warehouse: 0, withStreamers: 0, products: 0 })
   const nameOf = (hid) => hid == null ? 'Warehouse' : (scoped.profiles.find((p) => p.id === hid)?.name || 'Streamer')
 
   // activity log from distro sales (most reliably dated movements we have in scope)
@@ -94,6 +110,18 @@ export default function Inventory({ scoped }) {
         </div>
       ) : (
         <>
+          {/* category filter chips (All £X / Baseball £X / … / TCG £X) — V1 parity */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+            <button className={'chip' + (cat === 'all' ? ' on' : '')} onClick={() => setCat('all')}>
+              All<span className="chip-val">{shortMoney(catValues.__all)}</span>
+            </button>
+            {Object.keys(catValues).filter((k) => k !== '__all').sort().map((c) => (
+              <button key={c} className={'chip' + (cat === c ? ' on' : '')} onClick={() => setCat(c)}>
+                {c}<span className="chip-val">{shortMoney(catValues[c])}</span>
+              </button>
+            ))}
+          </div>
+
           {/* oversold alert */}
           {data.oversold.length > 0 && (
             <div style={{ marginBottom: 12, padding: '10px 14px', border: '1px solid #c82828', borderRadius: 10, background: 'rgba(200,40,40,0.05)' }}>
@@ -107,14 +135,14 @@ export default function Inventory({ scoped }) {
           )}
 
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
-            <Stat label="Stock value" value={gbp0(totals.value)} />
+            <Stat label={cat === 'all' ? 'Value of stock on hand' : `Value of ${cat} on hand`} value={gbp0(totals.value)} />
             <Stat label="In warehouse" value={int(totals.warehouse)} />
             <Stat label="With streamers" value={int(totals.withStreamers)} />
-            <Stat label="Products" value={int(data.rows.length)} />
+            <Stat label="Products" value={int(totals.products)} />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {data.groups.map((grp) => (
+            {shownGroups.map((grp) => (
               <div key={grp.category}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 2px 8px' }}>
                   <span style={{ fontWeight: 800, fontSize: 15 }}>{grp.category}</span>
@@ -169,7 +197,7 @@ export default function Inventory({ scoped }) {
                 </div>
               </div>
             ))}
-            {data.rows.length === 0 && <p style={{ color: '#888' }}>No products match.</p>}
+            {shownGroups.length === 0 && <p style={{ color: '#888' }}>No products match.</p>}
           </div>
         </>
       )}
