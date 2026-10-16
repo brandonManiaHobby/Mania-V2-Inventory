@@ -1,97 +1,127 @@
 import { useState, useMemo } from 'react'
 import { computeStream, sumMoney } from '../money'
-import { gbp0, gbp, pct, monthKey, parseLocalDate, canonPlatform } from '../data'
+import { gbp0, pct, canonPlatform, toDateKey } from '../data'
 import MoneyToggle, { VIEW_FIELD } from '../components/MoneyToggle'
 
 // ============================================================
-// INSIGHTS (Stage 5 — V1 parity + money layers)
-// Monthly breakdowns by platform / channel / streamer / department, with
-// the money toggle and CSV export. (Lead sees dept-scoped via scoping.)
+// INSIGHTS (V1 parity) — one calendar MONTH at a time (pick the month; step
+// back through previous months). Revenue / Profit / Streams headline, then
+// breakdowns By Department / Channel / Platform / Stream type. Money toggle +
+// CSV export. Scoped data is already role-filtered.
 // ============================================================
-const DIMS = [{ k: 'platform', label: 'Platform' }, { k: 'channel', label: 'Channel' }, { k: 'streamer', label: 'Streamer' }]
+const LABEL = { gross: 'Gross', net: 'Net', netExVat: 'Net ex-VAT', trueProfit: 'Profit' }
+const BRAND = { 'mania/101': '#ff6a00', 'mania 101': '#ff6a00', '101': '#ff6a00', 'mania tcg': '#3a6fd8', 'gc mania': '#c0531f' }
+const norm = (s) => String(s).toLowerCase().replace(/\s+/g, ' ').trim()
+function hue(str) { let h = 0; const s = String(str); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 360 }
+const dotColour = (k) => BRAND[norm(k)] || BRAND[norm(k).replace(/[/ ]/g, '')] || `hsl(${hue(k)} 60% 52%)`
+const hoursOf = (s) => {
+  if (!s.streamStart || !s.streamEnd) return 0
+  const p = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) + (m || 0) / 60 }
+  const d = p(s.streamEnd) - p(s.streamStart); return d > 0 ? d : 0
+}
 
 export default function Insights({ scoped }) {
-  const [dim, setDim] = useState('platform')
   const [view, setView] = useState('gross')
+  const [month, setMonth] = useState(() => toDateKey(new Date()).slice(0, 7))
   const field = VIEW_FIELD[view]
+  const vatOf = (sid) => scoped.stockItems.find((x) => x.id === sid)?.vatTreatment === 'second_hand' ? 'second_hand' : 'standard'
+  const maxMonth = toDateKey(new Date()).slice(0, 7)
 
-  const data = useMemo(() => {
-    const dimOf = (s) => dim === 'platform' ? canonPlatform(s.platform) : dim === 'channel' ? ((s.channel || '').trim() || '—') : (s.streamerName || '—')
-    // month -> dim -> ladders
-    const grid = {}
-    const dims = new Set()
-    for (const s of scoped.streams) {
-      const m = monthKey(s.streamDate); if (!m) continue
-      const d = dimOf(s); dims.add(d)
+  const model = useMemo(() => {
+    const streams = scoped.streams.filter((s) => s.streamDate && s.streamDate.slice(0, 7) === month)
+    const rows = streams.map((s) => {
       const lines = scoped.streamLines.filter((l) => l.streamId === s.id && !l.brokered)
-      const ladder = computeStream({ gross: s.totalSales, net: s.net, shipping: s.shipping },
-        lines.map((l) => ({ qty: l.qty, unitCost: l.unitCost, lineTotal: l.lineTotal, brokered: false, stockItemId: l.stockItemId })),
-        (sid) => scoped.stockItems.find((x) => x.id === sid)?.vatTreatment === 'second_hand' ? 'second_hand' : 'standard')
-      grid[m] = grid[m] || {}; grid[m][d] = grid[m][d] || []; grid[m][d].push(ladder)
-    }
-    const months = Object.keys(grid).sort().reverse()
-    const dimList = [...dims].sort()
-    const rows = months.map((m) => {
-      const cells = {}; let rowTotal = 0
-      for (const d of dimList) { const t = grid[m][d] ? sumMoney(grid[m][d])[field.value] : 0; cells[d] = t; rowTotal += t }
-      return { month: m, cells, total: rowTotal }
+      const m = computeStream({ gross: s.totalSales, net: s.net, shipping: s.shipping },
+        lines.map((l) => ({ qty: l.qty, unitCost: l.unitCost, lineTotal: l.lineTotal, brokered: false, stockItemId: l.stockItemId })), vatOf)
+      return { s, m, hours: hoursOf(s) }
     })
-    return { months, dimList, rows }
-  }, [scoped, dim, field.value])
+    const totals = sumMoney(rows.map((r) => r.m))
+    const totalHours = rows.reduce((a, r) => a + r.hours, 0)
+    const group = (keyOf) => {
+      const g = {}
+      for (const r of rows) {
+        const k = keyOf(r.s) || '—'
+        const e = g[k] || (g[k] = { key: k, ladders: [], hours: 0, count: 0 })
+        e.ladders.push(r.m); e.hours += r.hours; e.count += 1
+      }
+      return Object.values(g).map((e) => ({ ...e, t: sumMoney(e.ladders) })).sort((a, b) => b.t[field.value] - a.t[field.value])
+    }
+    return {
+      count: rows.length, totals, totalHours,
+      byDepartment: group((s) => s.department),
+      byChannel: group((s) => (s.channel || '').trim()),
+      byPlatform: group((s) => canonPlatform(s.platform)),
+      byType: group((s) => s.streamType),
+    }
+  }, [scoped, month, field.value])
 
-  const monthLabel = (m) => { const d = parseLocalDate(m + '-01'); return d ? d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }) : m }
+  const monthName = (() => { const [y, m] = month.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) })()
 
-  const downloadCsv = () => {
-    const headers = ['Month', ...data.dimList, 'Total']
-    const body = data.rows.map((r) => [monthLabel(r.month), ...data.dimList.map((d) => Math.round(r.cells[d])), Math.round(r.total)].join(','))
-    const csv = [headers.join(','), ...body].join('\n')
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    const a = document.createElement('a'); a.href = url; a.download = `insights-${dim}-${view}.csv`; a.click(); URL.revokeObjectURL(url)
+  const exportCsv = () => {
+    const q = (v) => { const t = String(v ?? ''); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t }
+    const m = (n) => (Number(n) || 0).toFixed(2)
+    const out = [`Mania Insights,${monthName}`, '']
+    const sect = (title, rows) => { out.push(title, 'Name,Streams,Hours,Revenue,Profit'); rows.forEach((r) => out.push([q(r.key), r.count, r.hours.toFixed(1), m(r.t[field.value]), m(r.t.trueProfit)].join(','))); out.push('') }
+    sect('BY DEPARTMENT', model.byDepartment); sect('BY CHANNEL', model.byChannel); sect('BY PLATFORM', model.byPlatform); sect('BY STREAM TYPE', model.byType)
+    const url = URL.createObjectURL(new Blob([out.join('\n')], { type: 'text/csv;charset=utf-8;' }))
+    const a = document.createElement('a'); a.href = url; a.download = `mania-insights-${month}.csv`; a.click(); URL.revokeObjectURL(url)
   }
 
-  const seg = (items, val, set) => (
-    <div style={{ display: 'inline-flex', gap: 2, padding: 2, background: '#f0efec', borderRadius: 999 }}>
-      {items.map((o) => <button key={o.k} onClick={() => set(o.k)} style={{ padding: '5px 11px', borderRadius: 999, border: 'none', cursor: 'pointer', font: 'inherit', fontSize: 12, fontWeight: val === o.k ? 700 : 400, background: val === o.k ? '#fff' : 'transparent' }}>{o.label}</button>)}
-    </div>
-  )
+  const monthField = { border: '1px solid var(--line)', borderRadius: 9, padding: '7px 10px', background: 'var(--card)', color: 'var(--ink)', font: 'inherit' }
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0 }}>Insights</h2>
+        <input type="month" style={monthField} value={month} max={maxMonth} onChange={(e) => setMonth(e.target.value)} />
         <MoneyToggle view={view} onChange={setView} />
+        <button className="btn ghost sm" onClick={exportCsv} disabled={model.count === 0} style={{ marginLeft: 'auto' }}>Export CSV</button>
+      </div>
+      <div style={{ fontSize: 12, color: '#999', marginTop: 6 }}>{monthName} · {model.count} streams · {model.totalHours.toFixed(1)}h</div>
+
+      <div className="cards" style={{ marginTop: 14 }}>
+        <div className="stat"><div className="label">{LABEL[view]}</div><div className="value">{gbp0(model.totals[field.value])}</div></div>
+        <div className="stat"><div className="label">Profit</div><div className="value pos">{gbp0(model.totals.trueProfit)}</div></div>
+        <div className="stat"><div className="label">Streams</div><div className="value">{model.count}</div></div>
       </div>
 
-      <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap', margin: '14px 0' }}>
-        <span style={{ fontSize: 12, color: '#999' }}>By</span> {seg(DIMS, dim, setDim)}
-        <button onClick={downloadCsv} disabled={!data.rows.length}
-          style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #ddd', background: '#faf9f7', cursor: 'pointer', fontWeight: 600 }}>
-          Download CSV
-        </button>
-      </div>
+      <Section title="By department" rows={model.byDepartment} field={field} dot />
+      <Section title="By channel" rows={model.byChannel} field={field} dot />
+      <Section title="By platform" rows={model.byPlatform} field={field} />
+      <Section title="By stream type" rows={model.byType} field={field} />
+    </div>
+  )
+}
 
-      <div style={{ padding: 16, border: '1px solid #eee', borderRadius: 12, background: '#fff', overflowX: 'auto' }}>
-        {data.rows.length === 0 ? <p style={{ color: '#888' }}>No data in scope.</p> : (
-          <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 480 }}>
-            <thead><tr style={{ textAlign: 'right', color: '#999', fontSize: 12 }}>
-              <th style={{ textAlign: 'left', padding: '6px 0' }}>Month</th>
-              {data.dimList.map((d) => <th key={d}>{d}</th>)}
-              <th>Total</th>
-            </tr></thead>
+function Section({ title, rows, field, dot }) {
+  const th = { textAlign: 'right', fontSize: 11, color: 'var(--muted)', fontWeight: 700, padding: '0 10px 6px' }
+  const td = { padding: '7px 10px', fontSize: 13, borderTop: '1px solid var(--line)', textAlign: 'right' }
+  return (
+    <div className="panel" style={{ marginTop: 14 }}>
+      <div style={{ fontWeight: 800, marginBottom: 8 }}>{title}</div>
+      {rows.length === 0 ? <p className="note" style={{ margin: 0 }}>No streams this month.</p> : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 460 }}>
+            <thead><tr><th style={{ ...th, textAlign: 'left' }}>Name</th><th style={th}>Streams</th><th style={th}>Hours</th><th style={th}>Revenue</th><th style={th}>Profit</th></tr></thead>
             <tbody>
-              {data.rows.map((r) => (
-                <tr key={r.month} style={{ borderTop: '1px solid #f3f3f3', textAlign: 'right' }}>
-                  <td style={{ textAlign: 'left', padding: '7px 0' }}>{monthLabel(r.month)}</td>
-                  {data.dimList.map((d) => <td key={d}>{gbp0(r.cells[d])}</td>)}
-                  <td style={{ fontWeight: 700 }}>{gbp0(r.total)}</td>
+              {rows.map((r) => (
+                <tr key={r.key}>
+                  <td style={{ ...td, textAlign: 'left' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      {dot && <span style={{ width: 9, height: 9, borderRadius: '50%', background: dotColour(r.key), flex: '0 0 auto' }} />}
+                      {r.key}
+                    </span>
+                  </td>
+                  <td style={td}>{r.count}</td>
+                  <td style={td}>{r.hours.toFixed(1)}</td>
+                  <td style={td}>{gbp0(r.t[field.value])}</td>
+                  <td style={{ ...td, color: r.t.trueProfit >= 0 ? 'var(--good)' : 'var(--red)' }}>{gbp0(r.t.trueProfit)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
-      <p style={{ color: '#aaa', fontSize: 12, marginTop: 10 }}>Figures in the selected money view ({LABEL[view]}).</p>
+        </div>
+      )}
     </div>
   )
 }
-const LABEL = { gross: 'Gross', net: 'Net', netExVat: 'Net ex-VAT', trueProfit: 'Profit' }
