@@ -10,11 +10,12 @@ import WaveRows from './WaveRows'
 // Per-stream product contribution uses the SAME per-line net allocation as
 // the Export (each line's share of stream net = its gross share × net).
 // ============================================================
-const TABS = ['Waves', 'Performance', 'Per stream', 'Profit / hour', 'P&L', 'Activity']
+const TABS = ['Recovery', 'Waves', 'Performance', 'Per stream', 'Profit / hour', 'P&L', 'Activity']
 
-export default function InspectProductModal({ product, scoped, onClose }) {
-  const [tab, setTab] = useState('Waves')
+export default function InspectProductModal({ product, scoped, onClose, onEdit }) {
+  const [tab, setTab] = useState('Recovery')
   const treatment = product.vatTreatment === 'second_hand' ? 'second_hand' : 'standard'
+  const onHand = scoped.holdings.filter((h) => h.stockItemId === product.id).reduce((a, h) => a + (Number(h.qty) || 0), 0)
 
   const m = useMemo(() => {
     const waves = scoped.waves.filter((w) => w.stockItemId === product.id).sort((a, b) => a.waveNo - b.waveNo)
@@ -97,7 +98,10 @@ export default function InspectProductModal({ product, scoped, onClose }) {
             <h3 style={{ margin: 0 }}>{shortName(product.product)}</h3>
             <div style={{ fontSize: 12, color: '#999' }}>{product.type || 'Uncategorised'}{treatment === 'second_hand' ? ' · 2nd-hand (VAT-free)' : ''}</div>
           </div>
-          <button onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 22, cursor: 'pointer', color: '#999' }}>×</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {onEdit && <button className="btn" onClick={onEdit} style={{ fontSize: 13 }}>Edit product &amp; waves</button>}
+            <button onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 22, cursor: 'pointer', color: '#999' }}>×</button>
+          </div>
         </div>
 
         {/* tabs */}
@@ -112,6 +116,43 @@ export default function InspectProductModal({ product, scoped, onClose }) {
         </div>
 
         <div style={{ padding: 22, background: '#faf9f7', borderRadius: '0 0 14px 14px', minHeight: 200 }}>
+          {/* ---- RECOVERY (V1 waterfall) ---- */}
+          {tab === 'Recovery' && (() => {
+            const total = m.totals.costExVatTotal || 0
+            const contribs = [
+              ...m.streamRows.map((r) => ({ date: r.date, label: `${r.streamer}`, value: r.netExVat })),
+              ...m.distro.map(({ d, mm }) => ({ date: d.soldOn, label: `Distro${d.customerName ? ' · ' + d.customerName : ''}`, value: mm.netExVat })),
+            ].filter((c) => c.value > 0).sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+            const scale = Math.max(total, m.totals.recovered, 1)
+            const Bar = ({ label, value, colour, strong }) => (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '3px 0' }}>
+                <div style={{ width: 150, fontSize: 12, color: strong ? '#111' : '#666', fontWeight: strong ? 700 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+                <div style={{ flex: 1, height: 16, background: '#f0efec', borderRadius: 5, overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.min(100, (value / scale) * 100)}%`, height: '100%', background: colour, borderRadius: 5 }} />
+                </div>
+                <div style={{ width: 90, textAlign: 'right', fontSize: 12, fontWeight: strong ? 700 : 400, color: colour === '#1a7f37' ? '#1a7f37' : '#111' }}>{gbp(value)}</div>
+              </div>
+            )
+            return (
+              <div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+                  <Stat label="Total cost" value={gbp0(total)} />
+                  <Stat label="Revenue generated" value={gbp0(m.totals.recovered)} accent="#1a7f37" />
+                  <Stat label="Stock on hand" value={int(onHand)} />
+                  <Stat label="Left to recover" value={gbp0(Math.max(0, total - m.totals.recovered))} accent="#b8700a" />
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>Cost recovery</div>
+                <div style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>Each stream chips away at this product’s cost until it pays for itself.</div>
+                <Bar label="Total cost" value={total} colour="#d9cdbf" strong />
+                {contribs.map((c, i) => <Bar key={i} label={`${c.date ? c.date.slice(5) : ''} · ${c.label}`} value={c.value} colour="#9fc7a8" />)}
+                <div style={{ borderTop: '2px solid #e8e6e2', marginTop: 6, paddingTop: 2 }}>
+                  <Bar label="Recovered so far" value={m.totals.recovered} colour="#1a7f37" strong />
+                </div>
+                {contribs.length === 0 && <p style={{ color: '#888', marginTop: 10 }}>No sales yet — nothing recovered.</p>}
+              </div>
+            )
+          })()}
+
           {/* ---- WAVES ---- */}
           {tab === 'Waves' && (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>

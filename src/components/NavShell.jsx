@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { capabilities } from '../scoping'
 import { supabase } from '../supabaseClient'
+import UpdateBanner from './UpdateBanner'
 
 // ============================================================
 // NAV SHELL — V1 visual shell (topbar + group tabs + subnav chips) over V2's
@@ -19,8 +20,7 @@ const NAV = [
   { id: 'products',   label: 'Products',      group: 'Analytics',  needs: (c) => c.seesAllDepartments },
   { id: 'insights',   label: 'Insights',      group: 'Analytics',  needs: (c) => c.seesAnalytics },
   { id: 'teams',      label: 'Teams',         group: 'Analytics',  needs: (c) => c.seesAnalytics },
-  // My Stock
-  { id: 'mystats',    label: 'My Stats',      group: 'My Stock',   needs: (c) => c.hasOwnShelf && !c.seesAnalytics },
+  // My Stock (now a combined page: personal stats + revenue bars + the shelf)
   { id: 'mystock',    label: 'My Stock',      group: 'My Stock',   needs: (c) => c.hasOwnShelf },
   // Stream
   { id: 'record',     label: 'Record stream', group: 'Stream',     needs: (c) => c.canRecordStream },
@@ -41,8 +41,10 @@ const NAV = [
   { id: 'toppssurvey',label: 'Topps survey',  group: 'Reporting',  needs: (c) => c.seesAllDepartments },
   // Admin
   { id: 'admin',      label: 'Admin',         group: 'Admin',      needs: (c) => c.isAdmin },
+  // Operations audit — admin + Mania TCG only (V1 parity)
+  { id: 'operations', label: 'Operations',    group: 'Operations', needs: (c) => c.isAdmin && c.department === 'Mania TCG' },
 ]
-const GROUP_ORDER = ['Analytics', 'My Stock', 'Stream', 'Inventory', 'Move stock', 'Finance', 'Reporting', 'Admin']
+const GROUP_ORDER = ['Analytics', 'My Stock', 'Stream', 'Inventory', 'Move stock', 'Finance', 'Reporting', 'Admin', 'Operations']
 // Per-screen descriptions for the V1-style section-header card (shown once in
 // the shell so every screen gets the same chrome).
 // V1's exact screen blurbs (ported verbatim), plus the V2-only screens.
@@ -67,6 +69,7 @@ const HINTS = {
   streamlogs: 'Every product sold on a stream, per unit.',
   toppssurvey: 'Prep the monthly Fanatics / Topps EMEA submission.',
   admin: 'Approve, edit and assign people across departments.',
+  operations: 'Rota’d hours vs actual streamed hours.',
 }
 const ROLE_LABEL = { admin: 'Admin', manager: 'Manager', lead: 'Lead', warehouse: 'Warehouse', streamer: 'Streamer' }
 const DBROLE_LABEL = { admin: 'Admin', manager: 'Manager', channel_lead: 'Lead', warehouse: 'Warehouse', breaker: 'Streamer' }
@@ -111,9 +114,18 @@ export default function NavShell({ profile, active, onNavigate, onSignOut, viewA
 
   return (
     <div className="shell">
+      <UpdateBanner />
       <header className="topbar">
         <button className="brand-home" onClick={() => items[0] && onNavigate(items[0].id)} title="Home" aria-label="Home">
-          <img className="brand-logo" src="/mania-logo-white.png" alt="Mania Cards & Collectibles" />
+          {(cap.isManager || cap.isWarehouse) ? (
+            <div className="brand-group">
+              <img className="bg-101" src="/logo-101-white.png" alt="1 of 1 Card Breaks" />
+              <img className="bg-mania" src="/mania-logo-white.png" alt="Mania Cards &amp; Collectibles" />
+              <img className="bg-gc" src="/logo-gcmania-white.png" alt="GC Mania" />
+            </div>
+          ) : (
+            <img className="brand-logo" src="/mania-logo-white.png" alt="Mania Cards &amp; Collectibles" />
+          )}
         </button>
         <div className="spacer" />
         <div className="who">{profile?.name} · {ROLE_LABEL[cap.role] || cap.role}{cap.department ? ` · ${cap.department}` : ''}</div>

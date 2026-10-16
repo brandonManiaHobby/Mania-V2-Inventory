@@ -4,7 +4,7 @@ import { gbp0, gbp, pct, int, monthKey, parseLocalDate, todayKey } from '../data
 import MoneyToggle, { VIEW_FIELD } from '../components/MoneyToggle'
 import StatCard from '../components/StatCard'
 import MiniBars from '../components/MiniBars'
-import OverlayChart from '../components/OverlayChart'
+import BarsChart from '../components/BarsChart'
 
 // ============================================================
 // STREAMERS (Stage 5 — FULL V1 PARITY + money layers)
@@ -171,8 +171,7 @@ function StreamerDeep({ r, scoped, view, field, vatOf }) {
       {dive.monthly.length > 1 && (
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Month by month ({LABEL[view]})</div>
-          <OverlayChart height={160} labels={dive.monthly.map((x) => monL(x.m))} formatY={gbp0}
-            series={[{ label: LABEL[view], colour: '#4a7fe0', points: dive.monthly.map((x, i) => ({ x: i, y: x.t[field.value] })) }]} />
+          <BarsChart height={180} labels={dive.monthly.map((x) => monL(x.m))} values={dive.monthly.map((x) => x.t[field.value])} formatY={gbp0} projLabel="Projected" />
         </div>
       )}
       {dive.brokeredSales > 0 && (

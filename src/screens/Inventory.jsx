@@ -1,6 +1,11 @@
 import { useState, useMemo } from 'react'
 import { gbp, gbp0, int } from '../data'
 import WaveRows from '../components/WaveRows'
+import InspectProductModal from '../components/InspectProductModal'
+import EditProductModal from '../components/EditProductModal'
+import { stockLevel } from '../constants'
+
+const LVL_COLOUR = { critical: '#c82828', low: '#c0531f', out: '#999', ok: undefined }
 
 // ============================================================
 // INVENTORY (Stage 5 — FULL V1 PARITY)
@@ -12,14 +17,17 @@ const short = (p) => String(p).replace(/^Pokemon TCG /, '').replace(/^Topps® /,
 
 export default function Inventory({ scoped }) {
   const [openId, setOpenId] = useState(null)
+  const [inspectId, setInspectId] = useState(null)
+  const [editStockId, setEditStockId] = useState(null)
   const [q, setQ] = useState('')
   const [tab, setTab] = useState('stock') // stock | activity
+  const canEdit = !!scoped.cap?.isAdmin || !!scoped.cap?.isManager
 
   const data = useMemo(() => {
     const byItem = {}
     for (const item of scoped.stockItems) {
       if (item.archived) continue
-      byItem[item.id] = { id: item.id, product: item.product, vat: item.vatTreatment, warehouse: 0, withStreamers: 0, value: 0, waves: [], holders: [], received: 0, sold: 0 }
+      byItem[item.id] = { id: item.id, product: item.product, category: item.type || 'Uncategorised', vat: item.vatTreatment, warehouse: 0, withStreamers: 0, value: 0, waves: [], holders: [], received: 0, sold: 0 }
     }
     for (const h of scoped.holdings) {
       const r = byItem[h.stockItemId]; if (!r || h.qty <= 0) continue
@@ -33,9 +41,14 @@ export default function Inventory({ scoped }) {
     const rows = Object.values(byItem).map((r) => ({ ...r, total: r.warehouse + r.withStreamers, oversoldBy: Math.max(0, r.sold - (r.received)) }))
     const oversold = rows.filter((r) => r.oversoldBy > 0).sort((a, b) => b.oversoldBy - a.oversoldBy)
     const visible = rows.filter((r) => r.total > 0 || r.waves.length > 0)
-      .filter((r) => !q || r.product.toLowerCase().includes(q.toLowerCase()))
+      .filter((r) => !q || (r.product + ' ' + r.category).toLowerCase().includes(q.toLowerCase()))
       .sort((a, b) => b.value - a.value)
-    return { rows: visible, oversold }
+    const cats = {}
+    for (const r of visible) { (cats[r.category] || (cats[r.category] = [])).push(r) }
+    const groups = Object.entries(cats).map(([category, its]) => ({
+      category, items: its, value: its.reduce((a, r) => a + r.value, 0), units: its.reduce((a, r) => a + r.total, 0),
+    })).sort((a, b) => b.value - a.value)
+    return { rows: visible, oversold, groups }
   }, [scoped, q])
 
   const totals = data.rows.reduce((a, r) => ({ value: a.value + r.value, warehouse: a.warehouse + r.warehouse, withStreamers: a.withStreamers + r.withStreamers }), { value: 0, warehouse: 0, withStreamers: 0 })
@@ -100,26 +113,39 @@ export default function Inventory({ scoped }) {
             <Stat label="Products" value={int(data.rows.length)} />
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {data.rows.map((r) => {
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {data.groups.map((grp) => (
+              <div key={grp.category}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 2px 8px' }}>
+                  <span style={{ fontWeight: 800, fontSize: 15 }}>{grp.category}</span>
+                  <span style={{ fontSize: 12, color: '#999' }}>{int(grp.units)} units · {gbp0(grp.value)}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {grp.items.map((r) => {
               const open = openId === r.id
               const loss = r.waves.some((w) => w.totalCost > 0 && w.revenueRecovered > 0 && w.revenueRecovered < w.totalCost && w.paidOff === false)
               return (
                 <div key={r.id} style={{ border: '1px solid #eee', borderRadius: 12, background: '#fff', overflow: 'hidden' }}>
-                  <button onClick={() => setOpenId(open ? null : r.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 14px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', font: 'inherit', flexWrap: 'wrap' }}>
-                    <div style={{ flex: '1 1 200px', minWidth: 160 }}>
-                      <div style={{ fontWeight: 600 }}>
-                        {short(r.product)}
-                        {r.vat === 'second_hand' && <span style={{ marginLeft: 8, fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#e6f0e6', color: '#1a7f37' }}>VAT-free</span>}
-                        {r.oversoldBy > 0 && <span style={{ marginLeft: 8, fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#fde0e0', color: '#c82828' }}>oversold</span>}
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <button onClick={() => setOpenId(open ? null : r.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, padding: '10px 14px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', font: 'inherit', flexWrap: 'wrap' }}>
+                      <div style={{ flex: '1 1 200px', minWidth: 160 }}>
+                        <div style={{ fontWeight: 600 }}>
+                          {short(r.product)}
+                          {r.vat === 'second_hand' && <span style={{ marginLeft: 8, fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#e6f0e6', color: '#1a7f37' }}>VAT-free</span>}
+                          {r.oversoldBy > 0 && <span style={{ marginLeft: 8, fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#fde0e0', color: '#c82828' }}>oversold</span>}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#999' }}>{int(r.warehouse)} warehouse · {int(r.withStreamers)} with streamers</div>
                       </div>
-                      <div style={{ fontSize: 12, color: '#999' }}>{int(r.warehouse)} warehouse · {int(r.withStreamers)} with streamers</div>
-                    </div>
-                    <div style={{ textAlign: 'right', minWidth: 90 }}>
-                      <div style={{ fontWeight: 700, fontSize: 18 }}>{int(r.total)}</div>
-                      <div style={{ fontSize: 12, color: '#888' }}>{gbp0(r.value)}</div>
-                    </div>
-                  </button>
+                      <div style={{ textAlign: 'right', minWidth: 90 }}>
+                        <div style={{ fontWeight: 700, fontSize: 18, color: LVL_COLOUR[stockLevel(r.total)] }}>{int(r.total)}{stockLevel(r.total) === 'critical' ? ' ⚠' : ''}</div>
+                        <div style={{ fontSize: 12, color: '#888' }}>{gbp0(r.value)}</div>
+                      </div>
+                    </button>
+                    <button onClick={() => setInspectId(r.id)} title="Inspect product" aria-label="Inspect product"
+                      style={{ flex: '0 0 auto', margin: '0 10px', width: 36, height: 36, borderRadius: 9, border: '1px solid var(--line)', background: 'var(--card)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--orange)' }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
+                    </button>
+                  </div>
                   {open && (
                     <div style={{ borderTop: '1px solid #f0f0f0', padding: '10px 14px', fontSize: 13 }}>
                       <div style={{ fontWeight: 700, marginBottom: 4 }}>Waves</div>
@@ -140,9 +166,28 @@ export default function Inventory({ scoped }) {
                 </div>
               )
             })}
+                </div>
+              </div>
+            ))}
             {data.rows.length === 0 && <p style={{ color: '#888' }}>No products match.</p>}
           </div>
         </>
+      )}
+
+      {inspectId && (
+        <InspectProductModal
+          product={scoped.stockItems.find((s) => s.id === inspectId)}
+          scoped={scoped}
+          onEdit={canEdit ? () => { setEditStockId(inspectId); setInspectId(null) } : undefined}
+          onClose={() => setInspectId(null)}
+        />
+      )}
+      {editStockId && (
+        <EditProductModal
+          product={scoped.stockItems.find((s) => s.id === editStockId)}
+          scoped={scoped}
+          onClose={() => setEditStockId(null)}
+        />
       )}
     </div>
   )

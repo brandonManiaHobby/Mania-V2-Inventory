@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { restock, returnToWarehouse, availableQty, int, useSource } from '../data'
+import { restock, returnToWarehouse, availableQty, int, gbp0, useSource } from '../data'
+import SearchSelect from '../components/SearchSelect'
 
 // ============================================================
 // MOVE STOCK (Stage 5) — hardened transfers: Restock, Return.
@@ -25,6 +26,10 @@ export default function MoveStock({ scoped }) {
   const [err, setErr] = useState(null)
 
   const items = scoped.stockItems.filter((s) => !s.archived)
+  // Searchable options with live levels in the note (V1 Restock style).
+  const productOptions = useMemo(() => items
+    .map((s) => ({ id: s.id, label: s.product, note: `${s.type || 'Uncategorised'} · ${int(availableQty(scoped, { stockItemId: s.id, holderId: 'warehouse' }))} in warehouse` }))
+    .sort((a, b) => a.label.localeCompare(b.label)), [items, scoped])
   // Anyone who can hold a shelf can receive/return stock — streamers, leads,
   // and admins/managers who run breaks themselves (e.g. Brandon).
   const streamers = scoped.profiles
@@ -94,12 +99,13 @@ export default function MoveStock({ scoped }) {
 
       {/* Form */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 440 }}>
-        <label style={lbl}>Product
-          <select style={{ ...field, marginTop: 4 }} value={stockItemId} onChange={(e) => { setStockItemId(e.target.value); reset() }}>
-            <option value="">Select…</option>
-            {items.map((s) => <option key={s.id} value={s.id}>{s.product}</option>)}
-          </select>
-        </label>
+        <div>
+          <span style={lbl}>Product</span>
+          <div style={{ marginTop: 4 }}>
+            <SearchSelect options={productOptions} value={stockItemId}
+              onChange={(id) => { setStockItemId(id); reset() }} placeholder="Search stock…" emptyText="No stock matches" />
+          </div>
+        </div>
 
         <label style={lbl}>Streamer
           <select style={{ ...field, marginTop: 4 }} value={who} onChange={(e) => { setWho(e.target.value); reset() }}>

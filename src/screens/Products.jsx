@@ -201,6 +201,7 @@ export default function Products({ scoped }) {
         <InspectProductModal
           product={scoped.stockItems.find((s) => s.id === inspectId)}
           scoped={scoped}
+          onEdit={(scoped.cap?.isAdmin || scoped.cap?.isManager) ? () => { setEditStockId(inspectId); setInspectId(null) } : undefined}
           onClose={() => setInspectId(null)}
         />
       )}

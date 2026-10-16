@@ -3,7 +3,7 @@ import { computeStream, sumMoney } from '../money'
 import { gbp0, gbp, pct, int, monthKey, canonPlatform, parseLocalDate, toDateKey, daysBetween, displayDate } from '../data'
 import MoneyToggle, { VIEW_FIELD } from '../components/MoneyToggle'
 import StatCard from '../components/StatCard'
-import OverlayChart from '../components/OverlayChart'
+import BarsChart from '../components/BarsChart'
 import RangePicker, { rangeDates, rangeLabelOf } from '../components/RangePicker'
 
 // ============================================================
@@ -242,15 +242,12 @@ export default function Dashboard({ scoped }) {
         )}
       </div>
 
-      {/* Gross vs net overlay — fixed blue/green */}
+      {/* Revenue by month — bars + projection trend */}
       <div style={{ marginTop: 18, padding: 16, border: '1px solid #eee', borderRadius: 12, background: '#fff' }}>
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>Revenue by month — gross vs net</div>
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>Revenue by month — with projection</div>
         {monthly.ms.length === 0 ? <p style={{ color: '#888' }}>No data.</p> : (
-          <OverlayChart labels={monthly.ms} formatY={gbp0}
-            series={[
-              { label: 'Gross', colour: '#4a7fe0', points: monthly.data.map((d, i) => ({ x: i, y: d.g })) },
-              { label: 'Net', colour: '#1a7f37', points: monthly.data.map((d, i) => ({ x: i, y: d.n })) },
-            ]} />
+          <BarsChart labels={monthly.ms.map((m) => displayDate(m + '-01', { month: 'short', year: '2-digit' }))}
+            values={monthly.data.map((d) => d.g)} formatY={gbp0} projLabel="Projected" />
         )}
       </div>
     </div>

@@ -36,6 +36,7 @@ export async function saveStream(input) {
     stock_item_id: l.stockItemId,
     qty: Number(l.qty),
     price: Number(l.price) || 0,
+    ...(l.type ? { type: l.type } : {}),   // per-line type for Mixed streams
   }))
 
   const { data: streamId, error: e1 } = await supabase.rpc('record_stream', {
@@ -48,12 +49,15 @@ export async function saveStream(input) {
     p_stream_type: input.streamType || null,
     p_total_sales: money2(gross),
     p_lines,
-    p_singles_qty: 0,
-    p_singles_avg_cost: 0,
-    p_singles_revenue: 0,
+    p_singles_qty: Number(input.singlesQty) || 0,
+    p_singles_avg_cost: Number(input.singlesAvg) || 0,
+    p_singles_revenue: Number(input.singlesRev) || 0,
     p_title: input.title || null,
-    p_mixed_types: null,
-    p_giveaways: [],
+    p_mixed_types: input.mixedTypes || null,
+    // co-pilot + giveaways match V1's record_stream overload exactly.
+    p_copilot_id: input.copilotId || null,
+    p_copilot_share: input.copilotId ? 0.5 : null,
+    p_giveaways: Array.isArray(input.giveaways) ? input.giveaways : [],
   })
   if (e1) throw e1
 

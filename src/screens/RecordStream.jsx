@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect } from 'react'
 import { computeStream } from '../money'
-import { gbp, gbp0, pct, saveStream, todayKey, useSource } from '../data'
+import { gbp, gbp0, pct, int, saveStream, todayKey, useSource } from '../data'
 import StatCard from '../components/StatCard'
+import { PLATFORMS, PLATFORM_CHANNELS, CHANNEL_DEPARTMENT, STREAM_TYPES, MIXED_TYPE_OPTIONS } from '../constants'
 
-const PLATFORMS = ['eBay Live', 'Whatnot', 'TikTok Shop', 'Fanatics']
 // Blended platform fee rates -> auto-fill net (gross × (1 − fee)). Editable.
 // Fanatics: 6% commission + 2.5% processing + £0.25/order ≈ 10% blended.
 const PLATFORM_FEE = { Fanatics: 0.10 }
@@ -35,17 +35,30 @@ export default function RecordStream({ scoped }) {
   const [title, setTitle] = useState('')
   const [streamUrl, setStreamUrl] = useState('')
   const [streamType, setStreamType] = useState('')
+  const [mixedTypes, setMixedTypes] = useState([])
   const [startTime, setStartTime] = useState('')
   const [durH, setDurH] = useState('')
   const [durM, setDurM] = useState('')
+  // co-pilot (a second streamer sitting in)
+  const [copilotOn, setCopilotOn] = useState(false)
+  const [copilotId, setCopilotId] = useState('')
+  // singles (loose cards sold alongside boxes)
+  const [showSingles, setShowSingles] = useState(false)
+  const [singlesQty, setSinglesQty] = useState('')
+  const [singlesAvg, setSinglesAvg] = useState('')
+  const [singlesRev, setSinglesRev] = useState('')
+  // giveaways (stock given away, not sold) -> stock write-off
+  const [giveaways, setGiveaways] = useState([])
   const [netTouched, setNetTouched] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
   const [err, setErr] = useState(null)
 
-  // Channel + stream-type suggestions from existing data (free text still allowed).
-  const channelOpts = useMemo(() => [...new Set(scoped.streams.map((s) => s.channel).filter(Boolean))].sort(), [scoped])
-  const typeOpts = useMemo(() => [...new Set(scoped.streams.map((s) => s.streamType).filter(Boolean))].sort(), [scoped])
+  // Platform -> channel cascade (V1 parity); channel -> department shown as a hint.
+  const channelOpts = useMemo(() => PLATFORM_CHANNELS[platform] || [], [platform])
+  const channelDept = CHANNEL_DEPARTMENT[channel] || null
+  const isMixed = streamType === 'Mixed'
+  const toggleMixed = (t) => setMixedTypes((m) => m.includes(t) ? m.filter((x) => x !== t) : [...m, t])
   // End time = start + duration, so hours are captured (powers rev/hour + Hours).
   const streamEnd = useMemo(() => {
     if (!startTime) return ''
@@ -75,19 +88,27 @@ export default function RecordStream({ scoped }) {
       await saveStream({
         streamerId, platform, channel, streamDate, title, streamUrl,
         streamType: streamType || null,
+        mixedTypes: isMixed && mixedTypes.length ? [...mixedTypes].sort().join(', ') : null,
+        copilotId: copilotId || null,
         streamStart: startTime || null,
         streamEnd: startTime ? streamEnd : null,
         gross: Number(gross) || 0,
         net: showNet && net !== '' ? Number(net) : null,
         shipping: showNet && shipping !== '' ? Number(shipping) : null,
         lines,
+        giveaways: giveaways.filter((g) => g.stockItemId && Number(g.qty) > 0).map((g) => ({ stock_item_id: g.stockItemId, qty: Number(g.qty) })),
+        singlesQty: showSingles ? singlesQty : 0,
+        singlesAvg: showSingles ? singlesAvg : 0,
+        singlesRev: showSingles ? singlesRev : 0,
       })
       setMsg('Stream saved ✓')
       await refresh()
       // reset
       setGross(''); setNet(''); setShipping(''); setShowNet(false); setNetTouched(false)
       setLines([{ stockItemId: '', qty: '', price: '' }]); setTitle(''); setStreamUrl('')
-      setStreamType(''); setStartTime(''); setDurH(''); setDurM('')
+      setStreamType(''); setMixedTypes([]); setStartTime(''); setDurH(''); setDurM('')
+      setCopilotOn(false); setCopilotId(''); setGiveaways([])
+      setShowSingles(false); setSinglesQty(''); setSinglesAvg(''); setSinglesRev('')
     } catch (e) {
       setErr(e.message || 'Could not save')
     } finally { setSaving(false) }
@@ -121,6 +142,8 @@ export default function RecordStream({ scoped }) {
 
   const addLine = () => setLines([...lines, { stockItemId: '', qty: '', price: '' }])
   const setLine = (i, k, v) => setLines(lines.map((l, idx) => idx === i ? { ...l, [k]: v } : l))
+  const addGiveaway = () => setGiveaways([...giveaways, { stockItemId: '', qty: '' }])
+  const setGiveaway = (i, k, v) => setGiveaways(giveaways.map((g, idx) => idx === i ? { ...g, [k]: v } : g))
 
   // Only the SELECTED streamer's own shelf is sellable — a stream sells what
   // that person is holding, not the whole catalogue.
@@ -142,24 +165,29 @@ export default function RecordStream({ scoped }) {
       {/* Stream meta */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
         <label style={{ fontSize: 13, color: '#444' }}>Streamer<br />
-          <select style={{ ...field, marginTop: 4, minWidth: 150 }} value={streamerId} onChange={(e) => setStreamerId(e.target.value)}>
+          <select style={{ ...field, marginTop: 4, minWidth: 150 }} value={streamerId} onChange={(e) => { setStreamerId(e.target.value); if (e.target.value === copilotId) setCopilotId('') }}>
             <option value="">Select…</option>
             {scoped.profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </label>
         <label style={{ fontSize: 13, color: '#444' }}>Platform<br />
-          <select style={{ ...field, marginTop: 4 }} value={platform} onChange={(e) => setPlatform(e.target.value)}>
+          <select style={{ ...field, marginTop: 4 }} value={platform} onChange={(e) => { setPlatform(e.target.value); setChannel('') }}>
             <option value="">Select…</option>
             {PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
         </label>
         <label style={{ fontSize: 13, color: '#444' }}>Channel<br />
-          <input list="rs-channels" style={{ ...field, marginTop: 4, minWidth: 150 }} value={channel} onChange={(e) => setChannel(e.target.value)} placeholder="e.g. Mania Collects" />
-          <datalist id="rs-channels">{channelOpts.map((c) => <option key={c} value={c} />)}</datalist>
+          <select style={{ ...field, marginTop: 4, minWidth: 160 }} value={channel} onChange={(e) => setChannel(e.target.value)} disabled={!platform}>
+            <option value="">{platform ? 'Select…' : 'Pick a platform first'}</option>
+            {channelOpts.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          {channelDept && <div style={{ fontSize: 11, color: '#999', marginTop: 3 }}>Counts towards <strong>{channelDept}</strong></div>}
         </label>
         <label style={{ fontSize: 13, color: '#444' }}>Type of stream<br />
-          <input list="rs-types" style={{ ...field, marginTop: 4, minWidth: 150 }} value={streamType} onChange={(e) => setStreamType(e.target.value)} placeholder="e.g. Break" />
-          <datalist id="rs-types">{typeOpts.map((t) => <option key={t} value={t} />)}</datalist>
+          <select style={{ ...field, marginTop: 4, minWidth: 140 }} value={streamType} onChange={(e) => setStreamType(e.target.value)}>
+            <option value="">Select…</option>
+            {STREAM_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
         </label>
         <label style={{ fontSize: 13, color: '#444' }}>Date<br />
           <input style={{ ...field, marginTop: 4 }} type="date" value={streamDate} onChange={(e) => setStreamDate(e.target.value)} />
@@ -168,6 +196,32 @@ export default function RecordStream({ scoped }) {
           <input style={{ ...field, marginTop: 4, width: '100%' }} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. £1 starts Lights Out" />
         </label>
       </div>
+
+      {/* Co-pilot — a second streamer sitting in on the show */}
+      <div style={{ marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button onClick={() => { const v = !copilotOn; setCopilotOn(v); if (!v) setCopilotId('') }}
+          style={{ ...field, cursor: 'pointer', background: copilotOn ? 'rgba(255,106,0,0.10)' : '#faf9f7', borderColor: copilotOn ? 'var(--orange)' : '#ddd', fontWeight: 600 }}>
+          {copilotOn ? '✓ Co-pilot' : '+ Co-pilot'}
+        </button>
+        {copilotOn && (
+          <select style={{ ...field, minWidth: 180 }} value={copilotId} onChange={(e) => setCopilotId(e.target.value)}>
+            <option value="">Second streamer…</option>
+            {scoped.profiles.filter((p) => p.id !== streamerId).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        )}
+      </div>
+
+      {/* Mixed stream — pick the formats that ran */}
+      {isMixed && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 13, color: '#444', marginBottom: 6 }}>What ran in this mixed stream?</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {MIXED_TYPE_OPTIONS.map((t) => (
+              <button key={t} onClick={() => toggleMixed(t)} className={'chip' + (mixedTypes.includes(t) ? ' on' : '')}>{t}</button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stream URL — the share link to the VOD (quick access + proof the stream is real) */}
       <div style={{ marginBottom: 14 }}>
@@ -212,6 +266,39 @@ export default function RecordStream({ scoped }) {
       {streamerId && heldItems.length === 0 && (
         <div style={{ fontSize: 12, color: '#c0531f', marginTop: 6 }}>No stock on this streamer’s shelf yet — issue stock to them under <strong>Move stock</strong> first.</div>
       )}
+
+      {/* Giveaways — stock given away (write-off), not sold */}
+      <div style={{ marginTop: 16 }}>
+        <div style={{ fontWeight: 700, margin: '0 0 6px' }}>Giveaways <span style={{ color: '#999', fontWeight: 400, fontSize: 12 }}>· comes off the shelf, £0 revenue</span></div>
+        {giveaways.map((g, i) => (
+          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+            <select style={{ ...field, flex: 2 }} value={g.stockItemId} onChange={(e) => setGiveaway(i, 'stockItemId', e.target.value)}>
+              <option value="">{heldItems.length ? 'Select product…' : 'No stock on this shelf'}</option>
+              {heldItems.map((s) => <option key={s.id} value={s.id}>{s.product}</option>)}
+            </select>
+            <input style={{ ...field, width: 70 }} type="number" placeholder="Qty" value={g.qty} onChange={(e) => setGiveaway(i, 'qty', e.target.value)} />
+            <button onClick={() => setGiveaways(giveaways.filter((_, idx) => idx !== i))} style={{ ...field, cursor: 'pointer', background: 'transparent', color: '#999' }}>×</button>
+          </div>
+        ))}
+        <button onClick={addGiveaway} disabled={!streamerId} style={{ ...field, cursor: 'pointer', background: '#faf9f7' }}>+ Add giveaway</button>
+      </div>
+
+      {/* Singles — loose cards sold alongside boxes */}
+      <div style={{ marginTop: 16 }}>
+        {!showSingles ? (
+          <button onClick={() => setShowSingles(true)} style={{ ...field, cursor: 'pointer', background: '#faf9f7', fontWeight: 600 }}>+ Add singles</button>
+        ) : (
+          <div style={{ padding: 14, border: '1px dashed #cbb', borderRadius: 10, background: '#fcfbf9' }}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>Singles</div>
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'end' }}>
+              <label style={{ fontSize: 13, color: '#444' }}>Qty<br /><input style={{ ...field, width: 90, marginTop: 4 }} type="number" value={singlesQty} onChange={(e) => setSinglesQty(e.target.value)} /></label>
+              <label style={{ fontSize: 13, color: '#444' }}>Avg cost / single<br /><input style={{ ...field, width: 120, marginTop: 4 }} type="number" value={singlesAvg} onChange={(e) => setSinglesAvg(e.target.value)} /></label>
+              <label style={{ fontSize: 13, color: '#444' }}>Singles revenue<br /><input style={{ ...field, width: 120, marginTop: 4 }} type="number" value={singlesRev} onChange={(e) => setSinglesRev(e.target.value)} /></label>
+              <button onClick={() => { setShowSingles(false); setSinglesQty(''); setSinglesAvg(''); setSinglesRev('') }} style={{ ...field, cursor: 'pointer', background: 'transparent', color: '#999' }}>Remove</button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Gross + optional net */}
       <div style={{ marginTop: 18, display: 'flex', gap: 16, alignItems: 'end', flexWrap: 'wrap' }}>

@@ -3,7 +3,7 @@ import { useAuth, Login } from './auth'
 import { useSource, int } from './data'
 import { scopeSource, capabilities } from './scoping'
 import NavShell, { NAV } from './components/NavShell'
-import { Dashboard, RecordStream, Streamers, Products, MyStock, MyStats, Inventory, ToppsSurvey, MoveStock, Insights, PastStreams, Teams, Finance, Export, Distro, StockIntake, Admin, Consumables, StreamLogs, ReportBuilder } from './screens'
+import { Dashboard, RecordStream, Streamers, Products, MyStock, Inventory, ToppsSurvey, MoveStock, Insights, PastStreams, Teams, Finance, Export, Distro, StockIntake, Admin, Consumables, StreamLogs, ReportBuilder, Operations } from './screens'
 
 // ============================================================
 // STAGE 4 — auth + nav shell.
@@ -36,7 +36,7 @@ export default function App() {
   // Landing page by role: dashboard for analytics roles (admin/manager/lead),
   // the streamer's own stats for streamers, else their first available screen.
   const cap = capabilities(shownProfile)
-  const landing = cap.seesAnalytics ? 'dashboard' : (cap.hasOwnShelf ? 'mystats' : (NAV.find((n) => n.needs(cap))?.id || 'dashboard'))
+  const landing = cap.seesAnalytics ? 'dashboard' : (cap.hasOwnShelf ? 'mystock' : (NAV.find((n) => n.needs(cap))?.id || 'dashboard'))
   const current = active || landing
 
   const enterViewAs = (role) => {
@@ -72,8 +72,6 @@ export default function App() {
         <Admin scoped={scoped} onViewAs={isAdmin ? enterViewAs : undefined} />
       ) : current === 'mystock' ? (
         <MyStock scoped={scoped} />
-      ) : current === 'mystats' ? (
-        <MyStats scoped={scoped} />
       ) : current === 'inventory' ? (
         <Inventory scoped={scoped} />
       ) : current === 'movestock' ? (
@@ -90,6 +88,8 @@ export default function App() {
         <StreamLogs scoped={scoped} />
       ) : current === 'reports' ? (
         <ReportBuilder scoped={scoped} />
+      ) : current === 'operations' ? (
+        <Operations profile={shownProfile} />
       ) : current === 'toppssurvey' ? (
         <ToppsSurvey scoped={scoped} />
       ) : (
