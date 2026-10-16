@@ -1523,3 +1523,10 @@ body:has(.modal-backdrop) { overflow: hidden; }
   align-self: flex-start;
 }
 .stock-alert-x:hover { color: var(--ink); background: rgba(0, 0, 0, 0.06); }
+
+/* ---------- Page transition fade (V2) ---------- */
+.screen-fade { animation: screenFade 0.18s ease both; }
+@keyframes screenFade {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

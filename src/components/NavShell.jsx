@@ -8,29 +8,66 @@ import { supabase } from '../supabaseClient'
 // (Ctrl/Cmd-K, managers+), Help, Change password, light/dark, sign out — plus
 // the admin "view as role" preview bar.
 // ============================================================
+// Nav mirrors V1's grouped tabs + sub-chips exactly (Analytics / My Stock /
+// Stream / Inventory / Move stock / Admin), capability-gated per role. Finance
+// and Reporting are the only V2 additions — they sit at the right end and are
+// admin/manager-only. Screen ids are unchanged, so routing is untouched.
 const NAV = [
-  { id: 'mystats',    label: 'My Stats',      group: 'Streaming',  needs: (c) => c.hasOwnShelf && !c.seesAnalytics },
-  { id: 'mystock',    label: 'My Stock',      group: 'Streaming',  needs: (c) => c.hasOwnShelf },
-  { id: 'record',     label: 'Record stream', group: 'Streaming',  needs: (c) => c.canRecordStream },
-  { id: 'past',       label: 'Past streams',  group: 'Streaming',  needs: (c) => c.canRecordStream },
-  { id: 'dashboard',  label: 'Dashboard',     group: 'Analytics',  needs: (c) => c.seesAnalytics },
+  // Analytics
+  { id: 'dashboard',  label: 'Department',    group: 'Analytics',  needs: (c) => c.seesAnalytics },
   { id: 'streamers',  label: 'Streamers',     group: 'Analytics',  needs: (c) => c.seesAnalytics },
   { id: 'products',   label: 'Products',      group: 'Analytics',  needs: (c) => c.seesAllDepartments },
   { id: 'insights',   label: 'Insights',      group: 'Analytics',  needs: (c) => c.seesAnalytics },
   { id: 'teams',      label: 'Teams',         group: 'Analytics',  needs: (c) => c.seesAnalytics },
-  { id: 'inventory',  label: 'Inventory',     group: 'Stock',      needs: (c) => c.seesInventory },
-  { id: 'intake',     label: 'Add stock',     group: 'Stock',      needs: (c) => c.canMoveStock },
-  { id: 'movestock',  label: 'Move stock',    group: 'Stock',      needs: (c) => c.canMoveStock },
-  { id: 'distro',     label: 'Distro sales',  group: 'Stock',      needs: (c) => c.canMoveStock },
-  { id: 'consumables',label: 'Consumables',   group: 'Stock',      needs: (c) => c.seesInventory },
+  // My Stock
+  { id: 'mystats',    label: 'My Stats',      group: 'My Stock',   needs: (c) => c.hasOwnShelf && !c.seesAnalytics },
+  { id: 'mystock',    label: 'My Stock',      group: 'My Stock',   needs: (c) => c.hasOwnShelf },
+  // Stream
+  { id: 'record',     label: 'Record stream', group: 'Stream',     needs: (c) => c.canRecordStream },
+  { id: 'past',       label: 'Past streams',  group: 'Stream',     needs: (c) => c.canRecordStream },
+  // Inventory
+  { id: 'inventory',  label: 'Inventory',     group: 'Inventory',  needs: (c) => c.seesInventory },
+  { id: 'intake',     label: 'Add stock',     group: 'Inventory',  needs: (c) => c.canMoveStock },
+  { id: 'consumables',label: 'Consumables',   group: 'Inventory',  needs: (c) => c.seesInventory },
+  // Move stock
+  { id: 'movestock',  label: 'Restock',       group: 'Move stock', needs: (c) => c.canMoveStock },
+  { id: 'distro',     label: 'Distro sale',   group: 'Move stock', needs: (c) => c.canMoveStock },
+  // Finance (admin/manager) — V2 addition, right end
   { id: 'finance',    label: 'Finance',       group: 'Finance',    needs: (c) => c.seesAllDepartments },
+  // Reporting (admin/manager) — V2 addition, right end
   { id: 'reports',    label: 'Report builder', group: 'Reporting', needs: (c) => c.seesAllDepartments },
-  { id: 'export',     label: 'Export',        group: 'Reporting',  needs: (c) => c.seesAnalytics },
-  { id: 'streamlogs', label: 'Stream logs',   group: 'Reporting',  needs: (c) => c.seesAnalytics },
+  { id: 'export',     label: 'Export',        group: 'Reporting',  needs: (c) => c.seesAllDepartments },
+  { id: 'streamlogs', label: 'Stream logs',   group: 'Reporting',  needs: (c) => c.seesAllDepartments },
   { id: 'toppssurvey',label: 'Topps survey',  group: 'Reporting',  needs: (c) => c.seesAllDepartments },
+  // Admin
   { id: 'admin',      label: 'Admin',         group: 'Admin',      needs: (c) => c.isAdmin },
 ]
-const GROUP_ORDER = ['Streaming', 'Analytics', 'Stock', 'Finance', 'Reporting', 'Admin']
+const GROUP_ORDER = ['Analytics', 'My Stock', 'Stream', 'Inventory', 'Move stock', 'Finance', 'Reporting', 'Admin']
+// Per-screen descriptions for the V1-style section-header card (shown once in
+// the shell so every screen gets the same chrome).
+// V1's exact screen blurbs (ported verbatim), plus the V2-only screens.
+const HINTS = {
+  dashboard: 'Revenue, profit and hours across your channels and platforms.',
+  streamers: 'Compare each streamer’s revenue, hours and margin against the previous period.',
+  products: 'Leaderboards and per-product cost recovery across the business.',
+  insights: 'Trends and patterns across channels and platforms.',
+  teams: 'Your people by department — peek at anyone’s stock or reassign them.',
+  mystats: 'Your streams, hours and takings at a glance.',
+  mystock: 'What’s currently on your shelf.',
+  record: 'Log what sold on a stream; stock comes off the streamer’s shelf.',
+  past: 'Every recorded stream — open one to see its receipt, edit or delete it.',
+  inventory: 'Stock levels, valuation and where every product is held.',
+  intake: 'Add a brand-new product or a new cost wave on an existing one.',
+  consumables: 'Sleeves, loaders, bags and postage — levels and per-streamer cost.',
+  movestock: 'Issue stock from the warehouse to a streamer’s shelf.',
+  distro: 'Record a direct/shop sale that didn’t happen on a stream.',
+  finance: 'Spend, VAT and giveaway write-offs.',
+  reports: 'Build any report — drill, stack and export.',
+  export: 'Pull any date range to CSV.',
+  streamlogs: 'Every product sold on a stream, per unit.',
+  toppssurvey: 'Prep the monthly Fanatics / Topps EMEA submission.',
+  admin: 'Approve, edit and assign people across departments.',
+}
 const ROLE_LABEL = { admin: 'Admin', manager: 'Manager', lead: 'Lead', warehouse: 'Warehouse', streamer: 'Streamer' }
 const DBROLE_LABEL = { admin: 'Admin', manager: 'Manager', channel_lead: 'Lead', warehouse: 'Warehouse', breaker: 'Streamer' }
 
@@ -117,7 +154,10 @@ export default function NavShell({ profile, active, onNavigate, onSignOut, viewA
         </div>
       )}
 
-      <main className="content">{children}</main>
+      <main className="content">
+        {activeItem && <PageHead eyebrow={activeGroup} title={activeItem.label} hint={HINTS[activeItem.id]} />}
+        <div key={active} className="screen-fade">{children}</div>
+      </main>
 
       {palette && <CommandPalette items={items} onJump={(id) => { onNavigate(id); setPalette(false) }} onClose={() => setPalette(false)} />}
       {help && <HelpModal onClose={() => setHelp(false)} />}
@@ -196,6 +236,19 @@ function ChangePassword({ onClose }) {
           <button className="btn" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Update password'}</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// V1 section-header card — eyebrow (group) + title left, description right.
+function PageHead({ eyebrow, title, hint }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, boxShadow: 'var(--shadow)', padding: '14px 18px', marginBottom: 18 }}>
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--muted)' }}>{eyebrow}</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)', marginTop: 2 }}>{title}</div>
+      </div>
+      {hint && <div style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'right', maxWidth: 380, lineHeight: 1.4 }}>{hint}</div>}
     </div>
   )
 }

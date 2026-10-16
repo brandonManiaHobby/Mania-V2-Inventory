@@ -34,10 +34,26 @@ export default function RecordStream({ scoped }) {
   const [streamDate, setStreamDate] = useState(todayKey())
   const [title, setTitle] = useState('')
   const [streamUrl, setStreamUrl] = useState('')
+  const [streamType, setStreamType] = useState('')
+  const [startTime, setStartTime] = useState('')
+  const [durH, setDurH] = useState('')
+  const [durM, setDurM] = useState('')
   const [netTouched, setNetTouched] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
   const [err, setErr] = useState(null)
+
+  // Channel + stream-type suggestions from existing data (free text still allowed).
+  const channelOpts = useMemo(() => [...new Set(scoped.streams.map((s) => s.channel).filter(Boolean))].sort(), [scoped])
+  const typeOpts = useMemo(() => [...new Set(scoped.streams.map((s) => s.streamType).filter(Boolean))].sort(), [scoped])
+  // End time = start + duration, so hours are captured (powers rev/hour + Hours).
+  const streamEnd = useMemo(() => {
+    if (!startTime) return ''
+    const [h, m] = startTime.split(':').map(Number)
+    const total = (h || 0) * 60 + (m || 0) + (Number(durH) || 0) * 60 + (Number(durM) || 0)
+    const eh = Math.floor((total % 1440) / 60), em = total % 60
+    return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`
+  }, [startTime, durH, durM])
 
   // Platform fee preset -> auto-fill net (until the user edits it themselves).
   const fee = PLATFORM_FEE[platform]
@@ -58,6 +74,9 @@ export default function RecordStream({ scoped }) {
     try {
       await saveStream({
         streamerId, platform, channel, streamDate, title, streamUrl,
+        streamType: streamType || null,
+        streamStart: startTime || null,
+        streamEnd: startTime ? streamEnd : null,
         gross: Number(gross) || 0,
         net: showNet && net !== '' ? Number(net) : null,
         shipping: showNet && shipping !== '' ? Number(shipping) : null,
@@ -68,6 +87,7 @@ export default function RecordStream({ scoped }) {
       // reset
       setGross(''); setNet(''); setShipping(''); setShowNet(false); setNetTouched(false)
       setLines([{ stockItemId: '', qty: '', price: '' }]); setTitle(''); setStreamUrl('')
+      setStreamType(''); setStartTime(''); setDurH(''); setDurM('')
     } catch (e) {
       setErr(e.message || 'Could not save')
     } finally { setSaving(false) }
@@ -102,6 +122,14 @@ export default function RecordStream({ scoped }) {
   const addLine = () => setLines([...lines, { stockItemId: '', qty: '', price: '' }])
   const setLine = (i, k, v) => setLines(lines.map((l, idx) => idx === i ? { ...l, [k]: v } : l))
 
+  // Only the SELECTED streamer's own shelf is sellable — a stream sells what
+  // that person is holding, not the whole catalogue.
+  const heldItems = useMemo(() => {
+    if (!streamerId) return []
+    const held = new Set(scoped.holdings.filter((h) => h.holderId === streamerId && h.qty > 0).map((h) => h.stockItemId))
+    return scoped.stockItems.filter((s) => !s.archived && held.has(s.id)).sort((a, b) => a.product.localeCompare(b.product))
+  }, [scoped, streamerId])
+
   const field = { padding: '8px 10px', borderRadius: 8, border: '1px solid #ddd', font: 'inherit' }
 
   // Profit standout: net entered -> Net profit hero; else gross-based.
@@ -125,6 +153,14 @@ export default function RecordStream({ scoped }) {
             {PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
         </label>
+        <label style={{ fontSize: 13, color: '#444' }}>Channel<br />
+          <input list="rs-channels" style={{ ...field, marginTop: 4, minWidth: 150 }} value={channel} onChange={(e) => setChannel(e.target.value)} placeholder="e.g. Mania Collects" />
+          <datalist id="rs-channels">{channelOpts.map((c) => <option key={c} value={c} />)}</datalist>
+        </label>
+        <label style={{ fontSize: 13, color: '#444' }}>Type of stream<br />
+          <input list="rs-types" style={{ ...field, marginTop: 4, minWidth: 150 }} value={streamType} onChange={(e) => setStreamType(e.target.value)} placeholder="e.g. Break" />
+          <datalist id="rs-types">{typeOpts.map((t) => <option key={t} value={t} />)}</datalist>
+        </label>
         <label style={{ fontSize: 13, color: '#444' }}>Date<br />
           <input style={{ ...field, marginTop: 4 }} type="date" value={streamDate} onChange={(e) => setStreamDate(e.target.value)} />
         </label>
@@ -140,13 +176,29 @@ export default function RecordStream({ scoped }) {
         </label>
       </div>
 
+      {/* Start time + duration -> hours (powers rev/hour + the Hours measure) */}
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'end', marginBottom: 14 }}>
+        <label style={{ fontSize: 13, color: '#444' }}>Start time<br />
+          <input style={{ ...field, marginTop: 4 }} type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+        </label>
+        <label style={{ fontSize: 13, color: '#444' }}>Duration<br />
+          <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+            <input style={{ ...field, width: 64 }} type="number" min="0" value={durH} onChange={(e) => setDurH(e.target.value)} placeholder="0" /> <span style={{ color: '#888' }}>h</span>
+            <input style={{ ...field, width: 64 }} type="number" min="0" max="59" value={durM} onChange={(e) => setDurM(e.target.value)} placeholder="00" /> <span style={{ color: '#888' }}>m</span>
+          </span>
+        </label>
+        {startTime && (Number(durH) > 0 || Number(durM) > 0) && (
+          <div style={{ fontSize: 12, color: '#888' }}>Ends {streamEnd} · {((Number(durH) || 0) + (Number(durM) || 0) / 60).toFixed(1)}h</div>
+        )}
+      </div>
+
       {/* Products */}
       <div style={{ fontWeight: 700, margin: '8px 0 6px' }}>Products sold</div>
       {lines.map((l, i) => (
         <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
           <select style={{ ...field, flex: 2 }} value={l.stockItemId} onChange={(e) => setLine(i, 'stockItemId', e.target.value)}>
-            <option value="">Select product…</option>
-            {scoped.stockItems.filter((s) => !s.archived).map((s) => (
+            <option value="">{streamerId ? (heldItems.length ? 'Select product…' : 'No stock on this shelf') : 'Pick a streamer first'}</option>
+            {heldItems.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.product}{s.vatTreatment === 'second_hand' ? ' · 2nd-hand (VAT-free)' : ''}
               </option>
@@ -157,6 +209,9 @@ export default function RecordStream({ scoped }) {
         </div>
       ))}
       <button onClick={addLine} style={{ ...field, cursor: 'pointer', background: '#faf9f7' }}>+ Add product</button>
+      {streamerId && heldItems.length === 0 && (
+        <div style={{ fontSize: 12, color: '#c0531f', marginTop: 6 }}>No stock on this streamer’s shelf yet — issue stock to them under <strong>Move stock</strong> first.</div>
+      )}
 
       {/* Gross + optional net */}
       <div style={{ marginTop: 18, display: 'flex', gap: 16, alignItems: 'end', flexWrap: 'wrap' }}>

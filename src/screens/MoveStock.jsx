@@ -25,7 +25,11 @@ export default function MoveStock({ scoped }) {
   const [err, setErr] = useState(null)
 
   const items = scoped.stockItems.filter((s) => !s.archived)
-  const streamers = scoped.profiles.filter((p) => ['breaker', 'channel_lead'].includes(p.role))
+  // Anyone who can hold a shelf can receive/return stock — streamers, leads,
+  // and admins/managers who run breaks themselves (e.g. Brandon).
+  const streamers = scoped.profiles
+    .filter((p) => ['breaker', 'channel_lead', 'admin', 'manager'].includes(p.role))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
 
   // current levels for the preview
   const warehouseQty = stockItemId ? availableQty(scoped, { stockItemId, holderId: 'warehouse' }) : 0

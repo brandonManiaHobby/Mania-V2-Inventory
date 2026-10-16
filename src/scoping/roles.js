@@ -42,7 +42,9 @@ export function capabilities(profile) {
   const seesInventory = isAdmin || isManager || isLead || isWarehouse
   const canMoveStock = isAdmin || isManager || isWarehouse
   const canRecordStream = isStreamer || isLead || isAdmin || isManager
-  const hasOwnShelf = isStreamer || isLead
+  // A shelf-holder is anyone who can be issued stock and sell it on stream —
+  // streamers and leads, plus admins/managers who run breaks themselves.
+  const hasOwnShelf = isStreamer || isLead || isAdmin || isManager
 
   return {
     role: r, isAdmin, isManager, isLead, isWarehouse, isStreamer,
