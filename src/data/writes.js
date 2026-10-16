@@ -57,12 +57,15 @@ export async function saveStream(input) {
   })
   if (e1) throw e1
 
-  // ---- attach V2 money fields (net/shipping/fees) ----
+  // ---- attach V2 money fields (net/shipping/fees). record_stream returns
+  // void, so set_stream_money finds the just-recorded stream by streamer+date
+  // (same pattern as set_stream_url) rather than relying on a returned id. ----
   if (input.net != null || input.shipping != null) {
     const { error: e2 } = await supabase.rpc('set_stream_money', {
-      p_stream_id: streamId,
       p_net: input.net != null ? money2(input.net) : null,
       p_shipping: input.shipping != null ? money2(input.shipping) : null,
+      p_streamer_id: input.streamerId,
+      p_stream_date: input.streamDate,
     })
     if (e2) throw e2
   }
@@ -232,12 +235,13 @@ export async function editStream(input) {
   })
   if (e1) throw e1
 
-  // Re-attach V2 money fields (net/shipping/fees) after the edit.
+  // Re-attach V2 money fields (net/shipping/fees) after the edit — this path
+  // has the stream id directly.
   if (input.net != null || input.shipping != null) {
     const { error: e2 } = await supabase.rpc('set_stream_money', {
-      p_stream_id: input.streamId,
       p_net: input.net != null ? money2(input.net) : null,
       p_shipping: input.shipping != null ? money2(input.shipping) : null,
+      p_stream_id: input.streamId,
     })
     if (e2) throw e2
   }
