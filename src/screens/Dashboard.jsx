@@ -25,6 +25,12 @@ function hoursOf(s) {
   const d = p(s.streamEnd) - p(s.streamStart); return d > 0 ? d : 0
 }
 
+// Stable per-series colour — each channel / platform / streamer gets its own
+// hue so contributions read distinctly (V1 parity). The gross-vs-net overlay
+// below keeps its fixed blue/green scheme.
+function hueFor(str) { let h = 0; const s = String(str); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 360 }
+const dimColour = (k) => `hsl(${hueFor(k)} 62% 52%)`
+
 export default function Dashboard({ scoped }) {
   const [range, setRange] = useState('30d')
   const [split, setSplit] = useState('platform')
@@ -117,9 +123,11 @@ export default function Dashboard({ scoped }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {groups.map((g) => (
               <div key={g.dim} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 120, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.dim}</div>
+                <div style={{ width: 120, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: dimColour(g.dim), flex: '0 0 auto' }} />{g.dim}
+                </div>
                 <div style={{ flex: 1, height: 20, background: '#f4f3f0', borderRadius: 6, overflow: 'hidden' }}>
-                  <div style={{ width: `${(g.mv / maxG) * 100}%`, height: '100%', background: '#4a7fe0', borderRadius: 6 }} />
+                  <div style={{ width: `${(g.mv / maxG) * 100}%`, height: '100%', background: dimColour(g.dim), borderRadius: 6 }} />
                 </div>
                 <div style={{ width: 90, textAlign: 'right', fontWeight: 600, fontSize: 13 }}>{fmtMeasure(g.mv)}</div>
                 <div style={{ width: 70, textAlign: 'right', fontSize: 11, color: '#999' }}>{g.shows} shw</div>

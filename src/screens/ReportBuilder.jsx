@@ -107,24 +107,6 @@ export default function ReportBuilder({ scoped }) {
     return byStream
   }, [scoped])
 
-  const opts = useMemo(() => {
-    const inRange = scoped.streams.filter((s) => !(s.streamDate && (s.streamDate < from || s.streamDate > to)))
-    const prods = (s) => linesOf[s.id] || []
-    const okStreamer = (s) => !fStreamer || (s.streamerName || '—') === fStreamer
-    const okChannel = (s) => !fChannel || (s.channel || '—') === fChannel
-    const okPlatform = (s) => !fPlatform || (canonPlatform(s.platform) || '—') === fPlatform
-    const okProduct = (s) => !fProduct || prods(s).includes(fProduct)
-    const S = new Set(), C = new Set(), P = new Set(), PR = new Set()
-    for (const s of inRange) {
-      if (okChannel(s) && okPlatform(s) && okProduct(s) && s.streamerName) S.add(s.streamerName)
-      if (okStreamer(s) && okPlatform(s) && okProduct(s) && s.channel) C.add(s.channel)
-      if (okStreamer(s) && okChannel(s) && okProduct(s) && s.platform) P.add(canonPlatform(s.platform))
-      if (okStreamer(s) && okChannel(s) && okPlatform(s)) prods(s).forEach((p) => PR.add(p))
-    }
-    const srt = (set) => [...set].sort((a, b) => a.localeCompare(b))
-    return { streamers: srt(S), channels: srt(C), platforms: srt(P), products: srt(PR) }
-  }, [scoped, linesOf, from, to, fStreamer, fChannel, fPlatform, fProduct])
-
   const { from, to, rangeLabel } = useMemo(() => {
     const t = parseLocalDate(today), key = toDateKey
     if (range === 'lifetime') { const ds = scoped.streams.map((s) => s.streamDate).filter(Boolean).sort(); return { from: ds[0] || '2000-01-01', to: today, rangeLabel: 'lifetime' } }
@@ -145,6 +127,24 @@ export default function ReportBuilder({ scoped }) {
     }
     return { from: cFrom, to: cTo, rangeLabel: `${cFrom} → ${cTo}` }
   }, [range, monthSel, weekSel, cFrom, cTo, today, scoped])
+
+  const opts = useMemo(() => {
+    const inRange = scoped.streams.filter((s) => !(s.streamDate && (s.streamDate < from || s.streamDate > to)))
+    const prods = (s) => linesOf[s.id] || []
+    const okStreamer = (s) => !fStreamer || (s.streamerName || '—') === fStreamer
+    const okChannel = (s) => !fChannel || (s.channel || '—') === fChannel
+    const okPlatform = (s) => !fPlatform || (canonPlatform(s.platform) || '—') === fPlatform
+    const okProduct = (s) => !fProduct || prods(s).includes(fProduct)
+    const S = new Set(), C = new Set(), P = new Set(), PR = new Set()
+    for (const s of inRange) {
+      if (okChannel(s) && okPlatform(s) && okProduct(s) && s.streamerName) S.add(s.streamerName)
+      if (okStreamer(s) && okPlatform(s) && okProduct(s) && s.channel) C.add(s.channel)
+      if (okStreamer(s) && okChannel(s) && okProduct(s) && s.platform) P.add(canonPlatform(s.platform))
+      if (okStreamer(s) && okChannel(s) && okPlatform(s)) prods(s).forEach((p) => PR.add(p))
+    }
+    const srt = (set) => [...set].sort((a, b) => a.localeCompare(b))
+    return { streamers: srt(S), channels: srt(C), platforms: srt(P), products: srt(PR) }
+  }, [scoped, linesOf, from, to, fStreamer, fChannel, fPlatform, fProduct])
 
   const records = useMemo(() => {
     const recs = []
