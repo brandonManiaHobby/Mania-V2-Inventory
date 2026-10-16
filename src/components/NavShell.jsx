@@ -9,6 +9,7 @@ import { supabase } from '../supabaseClient'
 // the admin "view as role" preview bar.
 // ============================================================
 const NAV = [
+  { id: 'mystats',    label: 'My Stats',      group: 'Streaming',  needs: (c) => c.hasOwnShelf && !c.seesAnalytics },
   { id: 'mystock',    label: 'My Stock',      group: 'Streaming',  needs: (c) => c.hasOwnShelf },
   { id: 'record',     label: 'Record stream', group: 'Streaming',  needs: (c) => c.canRecordStream },
   { id: 'past',       label: 'Past streams',  group: 'Streaming',  needs: (c) => c.canRecordStream },

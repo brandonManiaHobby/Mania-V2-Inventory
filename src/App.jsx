@@ -3,7 +3,7 @@ import { useAuth, Login } from './auth'
 import { useSource, int } from './data'
 import { scopeSource, capabilities } from './scoping'
 import NavShell, { NAV } from './components/NavShell'
-import { Dashboard, RecordStream, Streamers, Products, MyStock, Inventory, ToppsSurvey, MoveStock, Insights, PastStreams, Teams, Finance, Export, Distro, StockIntake, Admin, Consumables, StreamLogs, ReportBuilder } from './screens'
+import { Dashboard, RecordStream, Streamers, Products, MyStock, MyStats, Inventory, ToppsSurvey, MoveStock, Insights, PastStreams, Teams, Finance, Export, Distro, StockIntake, Admin, Consumables, StreamLogs, ReportBuilder } from './screens'
 
 // ============================================================
 // STAGE 4 — auth + nav shell.
@@ -21,7 +21,7 @@ const PLACEHOLDER = {
 export default function App() {
   const { status: authStatus, profile, signOut } = useAuth()
   const { source, status: srcStatus } = useSource()
-  const [active, setActive] = useState('dashboard')
+  const [active, setActive] = useState(null)
   // Admin "view as role" — preview the app as another role's layout.
   const [viewAs, setViewAs] = useState(null)
 
@@ -33,6 +33,12 @@ export default function App() {
   const shownProfile = (viewAs && isAdmin) ? { ...profile, role: viewAs } : profile
   const scoped = scopeSource(source, shownProfile)
 
+  // Landing page by role: dashboard for analytics roles (admin/manager/lead),
+  // the streamer's own stats for streamers, else their first available screen.
+  const cap = capabilities(shownProfile)
+  const landing = cap.seesAnalytics ? 'dashboard' : (cap.hasOwnShelf ? 'mystats' : (NAV.find((n) => n.needs(cap))?.id || 'dashboard'))
+  const current = active || landing
+
   const enterViewAs = (role) => {
     setViewAs(role)
     const cap = capabilities({ ...profile, role })
@@ -42,51 +48,53 @@ export default function App() {
   const exitViewAs = () => { setViewAs(null); setActive('admin') }
 
   return (
-    <NavShell profile={shownProfile} active={active} onNavigate={setActive} onSignOut={signOut}
+    <NavShell profile={shownProfile} active={current} onNavigate={setActive} onSignOut={signOut}
       viewAs={viewAs} onViewAs={isAdmin ? enterViewAs : undefined} onExitViewAs={exitViewAs}>
       {srcStatus !== 'ready' ? (
         <p>Loading…</p>
-      ) : active === 'dashboard' ? (
+      ) : current === 'dashboard' ? (
         <Dashboard scoped={scoped} />
-      ) : active === 'record' ? (
+      ) : current === 'record' ? (
         <RecordStream scoped={scoped} />
-      ) : active === 'past' ? (
+      ) : current === 'past' ? (
         <PastStreams scoped={scoped} />
-      ) : active === 'finance' ? (
+      ) : current === 'finance' ? (
         <Finance scoped={scoped} />
-      ) : active === 'streamers' ? (
+      ) : current === 'streamers' ? (
         <Streamers scoped={scoped} />
-      ) : active === 'products' ? (
+      ) : current === 'products' ? (
         <Products scoped={scoped} />
-      ) : active === 'insights' ? (
+      ) : current === 'insights' ? (
         <Insights scoped={scoped} />
-      ) : active === 'teams' ? (
+      ) : current === 'teams' ? (
         <Teams scoped={scoped} />
-      ) : active === 'admin' ? (
+      ) : current === 'admin' ? (
         <Admin scoped={scoped} onViewAs={isAdmin ? enterViewAs : undefined} />
-      ) : active === 'mystock' ? (
+      ) : current === 'mystock' ? (
         <MyStock scoped={scoped} />
-      ) : active === 'inventory' ? (
+      ) : current === 'mystats' ? (
+        <MyStats scoped={scoped} />
+      ) : current === 'inventory' ? (
         <Inventory scoped={scoped} />
-      ) : active === 'movestock' ? (
+      ) : current === 'movestock' ? (
         <MoveStock scoped={scoped} />
-      ) : active === 'intake' ? (
+      ) : current === 'intake' ? (
         <StockIntake scoped={scoped} />
-      ) : active === 'distro' ? (
+      ) : current === 'distro' ? (
         <Distro scoped={scoped} />
-      ) : active === 'consumables' ? (
+      ) : current === 'consumables' ? (
         <Consumables scoped={scoped} />
-      ) : active === 'export' ? (
+      ) : current === 'export' ? (
         <Export scoped={scoped} />
-      ) : active === 'streamlogs' ? (
+      ) : current === 'streamlogs' ? (
         <StreamLogs scoped={scoped} />
-      ) : active === 'reports' ? (
+      ) : current === 'reports' ? (
         <ReportBuilder scoped={scoped} />
-      ) : active === 'toppssurvey' ? (
+      ) : current === 'toppssurvey' ? (
         <ToppsSurvey scoped={scoped} />
       ) : (
         <>
-          <h2 style={{ marginTop: 0 }}>{PLACEHOLDER[active] || active}</h2>
+          <h2 style={{ marginTop: 0 }}>{PLACEHOLDER[current] || current}</h2>
           <p style={{ color: '#666' }}>Stage 5 — not built yet. Dashboard is the first live screen.</p>
           <div style={{ marginTop: 16, padding: 14, border: '1px solid #eee', borderRadius: 10, maxWidth: 420 }}>
             <div style={{ fontWeight: 700, marginBottom: 6 }}>Live scoped data (proving the stack)</div>
