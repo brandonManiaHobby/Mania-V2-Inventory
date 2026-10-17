@@ -43,6 +43,7 @@ export default function Dashboard({ scoped }) {
   const [showFilters, setShowFilters] = useState(false)
   const [f, setF] = useState({ dept: '', platform: '', type: '', channel: '', streamer: '' })
   const [tip, setTip] = useState(null)   // { row, idx, x } — anchored to the hovered row
+  const [inspect, setInspect] = useState(null)   // which headline total is expanded by department
   const chartRef = useRef(null)
   const ROW_H = 46                       // row padding (12) + bar height (34)
   const field = VIEW_FIELD[view]
@@ -68,6 +69,17 @@ export default function Dashboard({ scoped }) {
 
   const totals = useMemo(() => sumMoney(streams.map((s) => s.m)), [streams])
   const totalHours = streams.reduce((a, s) => a + s.hours, 0)
+
+  // Revenue/profit broken down by DEPARTMENT — powers the inspectable totals.
+  const byDept = useMemo(() => {
+    const m = {}
+    for (const s of streams) {
+      const k = s.department || '—'
+      const e = m[k] || (m[k] = { key: k, ladders: [], hours: 0, shows: 0 })
+      e.ladders.push(s.m); e.hours += s.hours; e.shows += 1
+    }
+    return Object.values(m).map((e) => ({ key: e.key, t: sumMoney(e.ladders), hours: e.hours, shows: e.shows }))
+  }, [streams])
 
   const dimOf = (s) => split === 'platform' ? (canonPlatform(s.platform) || '—') : split === 'channel' ? (s.channel || '—') : split === 'streamer' ? (s.streamerName || '—') : (s.department || '—')
   const measureVal = (s) => measure === 'hours' ? s.hours : measure === 'shows' ? 1 : s.m[field.value]
@@ -141,11 +153,46 @@ export default function Dashboard({ scoped }) {
         <MoneyToggle view={view} onChange={setView} />
       </div>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
-        <StatCard label={LABEL[view]} value={gbp0(totals[field.value])} sub={field.margin ? `${pct(totals[field.margin])} margin` : null} />
-        <StatCard label="Profit" value={gbp0(totals.trueProfit)} accent="#1a7f37" sub={`${pct(totals.netMarginPct)} net`} />
-        <StatCard label="Rev / hour" value={totalHours > 0 ? gbp0(totals.gross / totalHours) : '—'} />
-        <StatCard label="Streams" value={int(streams.length)} sub={`${totalHours.toFixed(1)}h`} />
+        <StatCard label={LABEL[view]} value={gbp0(totals[field.value])} sub={field.margin ? `${pct(totals[field.margin])} margin` : null}
+          onClick={() => setInspect((x) => x === 'revenue' ? null : 'revenue')} active={inspect === 'revenue'} />
+        <StatCard label="Profit" value={gbp0(totals.trueProfit)} accent="#1a7f37" sub={`${pct(totals.netMarginPct)} net`}
+          onClick={() => setInspect((x) => x === 'profit' ? null : 'profit')} active={inspect === 'profit'} />
+        <StatCard label="Rev / hour" value={totalHours > 0 ? gbp0(totals.gross / totalHours) : '—'}
+          onClick={() => setInspect((x) => x === 'revhour' ? null : 'revhour')} active={inspect === 'revhour'} />
+        <StatCard label="Streams" value={int(streams.length)} sub={`${totalHours.toFixed(1)}h`}
+          onClick={() => setInspect((x) => x === 'streams' ? null : 'streams')} active={inspect === 'streams'} />
       </div>
+
+      {/* Inspectable totals — contribution by department for the chosen total */}
+      {inspect && (() => {
+        const metric = {
+          revenue: { title: LABEL[view] + ' by department', val: (d) => d.t[field.value], fmt: gbp0, total: totals[field.value] },
+          profit: { title: 'Profit by department', val: (d) => d.t.trueProfit, fmt: gbp0, total: totals.trueProfit },
+          revhour: { title: 'Revenue / hour by department', val: (d) => d.hours > 0 ? d.t.gross / d.hours : 0, fmt: gbp0, total: totalHours > 0 ? totals.gross / totalHours : 0, rate: true },
+          streams: { title: 'Streams by department', val: (d) => d.shows, fmt: int, total: streams.length },
+        }[inspect]
+        const rows = byDept.map((d) => ({ key: d.key, v: metric.val(d) })).filter((r) => r.v !== 0).sort((a, b) => b.v - a.v)
+        const max = Math.max(1, ...rows.map((r) => Math.abs(r.v)))
+        return (
+          <div style={{ marginTop: 10, padding: 16, border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card)' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+              <span style={{ fontWeight: 800 }}>{metric.title}</span>
+              <span className="note">{metric.rate ? 'rate — not summed' : `total ${metric.fmt(metric.total)}`}</span>
+            </div>
+            {rows.length === 0 ? <p className="note" style={{ margin: 0 }}>No data in range.</p> : rows.map((r) => (
+              <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0' }}>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: seriesColour(r.key), flex: '0 0 auto' }} />
+                <span style={{ width: 130, flex: '0 0 130px', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.key}</span>
+                <span style={{ flex: 1, background: 'var(--bg)', borderRadius: 6, overflow: 'hidden', height: 18 }}>
+                  <span style={{ display: 'block', width: `${Math.max(2, (Math.abs(r.v) / max) * 100)}%`, height: '100%', background: seriesColour(r.key), borderRadius: 6 }} />
+                </span>
+                <span style={{ width: 92, flex: '0 0 92px', textAlign: 'right', fontWeight: 700, fontSize: 13 }}>{metric.fmt(r.v)}</span>
+                {!metric.rate && <span style={{ width: 48, flex: '0 0 48px', textAlign: 'right', fontSize: 12, color: 'var(--muted)' }}>{pct(metric.total ? r.v / metric.total : 0)}</span>}
+              </div>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* Contribution */}
       <div style={{ marginTop: 22, padding: 16, border: '1px solid #eee', borderRadius: 12, background: '#fff' }}>
