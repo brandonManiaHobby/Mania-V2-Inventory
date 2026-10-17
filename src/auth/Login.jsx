@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from './AuthProvider'
 
-// Minimal sign-in (email + password) against the same Supabase as V1.
+// Sign-in styled to match V1 — Mania logo + brand orange. Same Supabase as V1.
 export default function Login() {
   const { signInWithEmail, error } = useAuth()
   const [email, setEmail] = useState('')
@@ -9,34 +9,40 @@ export default function Login() {
   const [busy, setBusy] = useState(false)
 
   const go = async () => {
+    if (!email || !password) return
     setBusy(true)
     await signInWithEmail(email.trim(), password)
     setBusy(false)
   }
 
-  const field = { padding: '10px 12px', borderRadius: 8, border: '1px solid #ddd', width: '100%', font: 'inherit', marginTop: 6 }
-
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 360, margin: '80px auto', padding: 24 }}>
-      <h1 style={{ margin: 0, fontSize: 26 }}>Mania V2</h1>
-      <p style={{ color: '#666', marginTop: 4 }}>Sign in</p>
-      <div style={{ marginTop: 16 }}>
-        <label style={{ fontSize: 13, color: '#444' }}>Email
-          <input style={field} type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && go()} />
-        </label>
-        <label style={{ fontSize: 13, color: '#444', display: 'block', marginTop: 12 }}>Password
-          <input style={field} type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && go()} />
-        </label>
-        {error && <div style={{ color: '#c82828', fontSize: 13, marginTop: 10 }}>{error}</div>}
-        <button onClick={go} disabled={busy || !email || !password}
-          style={{ marginTop: 16, width: '100%', padding: '10px', borderRadius: 8, border: 'none',
-            background: '#1a7f37', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+    <div className="auth-wrap">
+      <div className="auth-card">
+        <img className="auth-logo auth-logo-light" src="/mania-logo-dark.png" alt="Mania Cards &amp; Collectibles" />
+        <img className="auth-logo auth-logo-dark" src="/mania-logo-white.png" alt="Mania Cards &amp; Collectibles" />
+        <div className="auth-sub">Sign in</div>
+
+        {error && <div className="error" style={{ marginBottom: 14 }}>{error}</div>}
+
+        <div className="field">
+          <label>Email</label>
+          <input type="email" value={email} autoCapitalize="none" placeholder="you@maniahobby.com"
+            onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && go()} />
+        </div>
+        <div className="field">
+          <label>Password</label>
+          <input type="password" value={password} placeholder="••••••••"
+            onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && go()} />
+        </div>
+
+        <button className="btn" style={{ width: '100%' }} onClick={go} disabled={busy || !email || !password}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
+
+        <div className="center">
+          <div className="note">Same login as V1 — reads the same database. Forgotten your password? Ask a manager to reset it.</div>
+        </div>
       </div>
-      <p style={{ color: '#999', fontSize: 12, marginTop: 16 }}>Same login as V1 — reads the same database.</p>
     </div>
   )
 }
