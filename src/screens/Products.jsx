@@ -63,6 +63,17 @@ export default function Products({ scoped }) {
   const totals = useMemo(() => sumMoney(rows.map((r) => r.t)), [rows])
   const grandMax = Math.max(1, ...rows.map((r) => r.t.gross))
 
+  // Four glanceable leaderboards — each shows its #1, expands to the full top 10.
+  const boards = useMemo(() => {
+    const top = (val, guard) => rows.filter((r) => guard ? guard(r) : true).slice().sort((a, b) => val(b) - val(a)).filter((r) => val(r) > 0).slice(0, 10)
+    return {
+      used: top((r) => r.units),
+      sales: top((r) => r.t.gross),
+      profit: top((r) => r.t.trueProfit),
+      margin: top((r) => r.t.netMarginPct, (r) => r.units >= 5 && r.t.gross >= 100),
+    }
+  }, [rows])
+
   const modeSeg = (
     <div style={{ display: 'inline-flex', gap: 2, padding: 2, background: '#f0efec', borderRadius: 999 }}>
       {[['performance', 'Performance'], ['totals', 'Totals']].map(([k, l]) => (
@@ -97,7 +108,17 @@ export default function Products({ scoped }) {
         <StatCard label="VAT owed" value={gbp0(totals.vatOwed)} accent="#b8700a" />
         <StatCard label="True profit" value={gbp0(totals.trueProfit)} accent="#1a7f37" sub={`${pct(totals.netMarginPct)} net margin`} />
       </div>
-      <div style={{ fontSize: 12, color: '#999', marginTop: 16, marginBottom: 6 }}>
+      {/* Glanceable leaderboards — best of each, expand for the top 10 */}
+      {rows.length > 0 && (
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
+          <ProductBoard title="Most used" subtitle="boxes on stream" rows={boards.used} metric={(r) => int(r.units)} onOpen={setInspectId} />
+          <ProductBoard title="Most sales" subtitle="revenue" rows={boards.sales} metric={(r) => gbp0(r.t.gross)} onOpen={setInspectId} />
+          <ProductBoard title="Most profitable" subtitle="true profit" rows={boards.profit} metric={(r) => gbp0(r.t.trueProfit)} onOpen={setInspectId} />
+          <ProductBoard title="Best margin" subtitle="min 5 boxes · £100" rows={boards.margin} metric={(r) => pct(r.t.netMarginPct)} onOpen={setInspectId} />
+        </div>
+      )}
+
+      <div style={{ fontSize: 12, color: '#999', marginTop: 20, marginBottom: 6 }}>
         Ranked by {LABEL[view].toLowerCase()} · tap for P&L, waves, streamers + recovery
       </div>
 
@@ -204,6 +225,35 @@ export default function Products({ scoped }) {
           onEdit={(scoped.cap?.isAdmin || scoped.cap?.isManager) ? () => { setEditStockId(inspectId); setInspectId(null) } : undefined}
           onClose={() => setInspectId(null)}
         />
+      )}
+    </div>
+  )
+}
+
+// Glanceable leaderboard: the #1 product shows at a glance; the tile expands to
+// reveal ranks 2–10 (the full top 10). Clicking any row inspects that product.
+function ProductBoard({ title, subtitle, rows, metric, onOpen }) {
+  const [open, setOpen] = useState(false)
+  if (!rows || rows.length === 0) return null
+  const shown = open ? rows : rows.slice(0, 1)
+  const rowStyle = (rank) => ({ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 14px', background: 'transparent', border: 'none', borderTop: rank === 0 ? 'none' : '1px solid var(--line)', cursor: 'pointer', textAlign: 'left', font: 'inherit' })
+  return (
+    <div className="panel" style={{ flex: '1 1 250px', minWidth: 230, padding: 0, overflow: 'hidden', alignSelf: 'flex-start' }}>
+      <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--line)' }}>
+        <div style={{ fontWeight: 800 }}>{title}</div>
+        <div className="note" style={{ marginTop: 1 }}>{subtitle}</div>
+      </div>
+      {shown.map((r, i) => (
+        <button key={r.id} onClick={() => onOpen(r.id)} style={rowStyle(i)}>
+          <span style={{ width: 18, fontWeight: 700, color: i === 0 ? 'var(--orange)' : '#bbb', flex: '0 0 auto' }}>{i + 1}</span>
+          <span style={{ flex: 1, fontWeight: i === 0 ? 700 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{short(r.product)}</span>
+          <span style={{ fontWeight: 700, flex: '0 0 auto' }}>{metric(r)}</span>
+        </button>
+      ))}
+      {rows.length > 1 && (
+        <button onClick={() => setOpen((o) => !o)} style={{ width: '100%', padding: '9px 14px', background: 'var(--bg)', border: 'none', borderTop: '1px solid var(--line)', cursor: 'pointer', font: 'inherit', fontSize: 13, fontWeight: 600, color: 'var(--orange)' }}>
+          {open ? 'Show less' : `Show top ${rows.length}`}
+        </button>
       )}
     </div>
   )

@@ -19,7 +19,13 @@ export async function saveStream(input) {
   if (!(gross > 0)) throw new Error('Gross is required')
   const rawLines = input.lines || []
   const lines = rawLines.filter((l) => l.stockItemId && Number(l.qty) > 0)
-  if (lines.length === 0) {
+  // Brokered deals: ran through the show but not the streamer's own stock. Carried
+  // as lines with brokered:true so record_stream credits the channel, not the
+  // streamer, and never decrements a shelf. Each needs a deal owner.
+  const rawBrokered = input.brokered || []
+  const brokered = rawBrokered.filter((b) => b.stockItemId && Number(b.qty) > 0)
+  if (brokered.some((b) => !b.ownerId)) throw new Error('Every brokered deal needs a deal owner selected before you can save')
+  if (lines.length === 0 && brokered.length === 0) {
     // Specific diagnosis: distinguish "no product picked" from "no qty".
     const anyProduct = rawLines.some((l) => l.stockItemId)
     const anyQty = rawLines.some((l) => Number(l.qty) > 0)
@@ -37,7 +43,13 @@ export async function saveStream(input) {
     qty: Number(l.qty),
     price: Number(l.price) || 0,
     ...(l.type ? { type: l.type } : {}),   // per-line type for Mixed streams
-  }))
+  })).concat(brokered.map((b) => ({
+    stock_item_id: b.stockItemId,
+    qty: Number(b.qty),
+    price: Number(b.price) || 0,
+    brokered: true,
+    brokered_owner_id: b.ownerId || null,
+  })))
 
   const { data: streamId, error: e1 } = await supabase.rpc('record_stream', {
     p_streamer_id: input.streamerId,

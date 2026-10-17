@@ -10,11 +10,11 @@ import { PLATFORMS, PLATFORM_CHANNELS, CHANNEL_DEPARTMENT, STREAM_TYPES, MIXED_T
 const PLATFORM_FEE = { Fanatics: 0.10 }
 
 // ============================================================
-// RECORD STREAM (V1 parity) — one clean, uniform card: streamer, co-pilot,
-// platform/channel, date/type, title, URL, start/duration, then Gross and Net
-// side by side with shipping. Products sold/opened use the searchable shelf
-// picker; giveaways + singles below; live money preview via the engine with
-// PER-LINE VAT. Net entered -> net profit is the hero; gross only -> gross.
+// RECORD STREAM (V1 parity) — the WHOLE form lives in ONE grouped card, exactly
+// like V1: streamer, co-pilot, platform/channel, date/type, title, URL,
+// start/duration, Gross + Net side by side, then PRODUCTS SOLD / OPENED,
+// giveaways, brokered deals, singles, the live money preview and Review & submit
+// — all inside the same panel. Net entered -> net profit is the hero.
 // ============================================================
 export default function RecordStream({ scoped }) {
   const { refresh } = useSource()
@@ -45,6 +45,8 @@ export default function RecordStream({ scoped }) {
   const [singlesRev, setSinglesRev] = useState('')
   // giveaways (stock given away, not sold) -> stock write-off
   const [giveaways, setGiveaways] = useState([])
+  // brokered deals (ran through the show, owned by someone else)
+  const [brokered, setBrokered] = useState([])
   const [netTouched, setNetTouched] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
@@ -91,6 +93,7 @@ export default function RecordStream({ scoped }) {
         shipping: shipping !== '' ? Number(shipping) : null,
         lines,
         giveaways: giveaways.filter((g) => g.stockItemId && Number(g.qty) > 0).map((g) => ({ stock_item_id: g.stockItemId, qty: Number(g.qty) })),
+        brokered: brokered.filter((b) => b.stockItemId && Number(b.qty) > 0).map((b) => ({ stockItemId: b.stockItemId, qty: Number(b.qty), price: Number(b.price) || 0, ownerId: b.ownerId || null })),
         singlesQty: showSingles ? singlesQty : 0,
         singlesAvg: showSingles ? singlesAvg : 0,
         singlesRev: showSingles ? singlesRev : 0,
@@ -101,7 +104,7 @@ export default function RecordStream({ scoped }) {
       setGross(''); setNet(''); setShipping(''); setNetTouched(false)
       setLines([{ stockItemId: '', qty: '', price: '' }]); setTitle(''); setStreamUrl('')
       setStreamType(''); setMixedTypes([]); setStartTime(''); setDurH(''); setDurM('')
-      setCopilotOn(false); setCopilotId(''); setGiveaways([])
+      setCopilotOn(false); setCopilotId(''); setGiveaways([]); setBrokered([])
       setShowSingles(false); setSinglesQty(''); setSinglesAvg(''); setSinglesRev('')
     } catch (e) {
       setErr(e.message || 'Could not save')
@@ -138,6 +141,8 @@ export default function RecordStream({ scoped }) {
   const setLine = (i, k, v) => setLines(lines.map((l, idx) => idx === i ? { ...l, [k]: v } : l))
   const addGiveaway = () => setGiveaways([...giveaways, { stockItemId: '', qty: '' }])
   const setGiveaway = (i, k, v) => setGiveaways(giveaways.map((g, idx) => idx === i ? { ...g, [k]: v } : g))
+  const addBrokered = () => setBrokered([...brokered, { stockItemId: '', qty: '', price: '', ownerId: '' }])
+  const setBrokeredLine = (i, k, v) => setBrokered(brokered.map((b, idx) => idx === i ? { ...b, [k]: v } : b))
 
   // Only the SELECTED streamer's own shelf is sellable — a stream sells what
   // that person is holding, not the whole catalogue.
@@ -155,7 +160,12 @@ export default function RecordStream({ scoped }) {
     return { id: s.id, product: s.product, vat: s.vatTreatment, qty, cost }
   }), [heldItems, scoped, streamerId])
 
+  // Brokered can be any catalogue product (it's not off the streamer's shelf).
+  const catalogue = useMemo(() => scoped.stockItems.filter((s) => !s.archived).sort((a, b) => a.product.localeCompare(b.product)), [scoped])
+
   const field = { padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', font: 'inherit', background: 'var(--card)', color: 'var(--ink)' }
+  const addBtn = { ...field, cursor: 'pointer' }
+  const groupLabel = { fontWeight: 700, fontSize: 13, letterSpacing: 0.3, color: 'var(--muted)', textTransform: 'uppercase', margin: '20px 0 8px' }
 
   // Profit standout: net entered -> Net profit hero; else gross-based.
   const netApplied = net !== ''
@@ -165,8 +175,9 @@ export default function RecordStream({ scoped }) {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <h2 style={{ marginTop: 0 }}>Record stream</h2>
+      <h2 style={{ marginTop: 0 }}>Stream</h2>
 
+      {/* One grouped card — the whole form, like V1 */}
       <div className="panel">
         {/* Streamer */}
         <div className="field">
@@ -268,7 +279,7 @@ export default function RecordStream({ scoped }) {
           </div>
         </div>
 
-        {/* Gross | Net — side by side (V1 clean layout) */}
+        {/* Gross | Net — side by side */}
         <div className="row2">
           <div className="field">
             <label>Total Gross Sales (£) <span style={{ color: 'var(--red)' }}>*</span></label>
@@ -279,99 +290,136 @@ export default function RecordStream({ scoped }) {
             <input style={field} type="number" step="0.01" value={net} onChange={(e) => { setNet(e.target.value); setNetTouched(true) }} placeholder="optional" />
           </div>
         </div>
-        <div className="row2" style={{ marginTop: -4 }}>
+        <div className="row2">
           <div className="field" style={{ marginBottom: 0 }}>
             <label>Shipping spend (optional)</label>
             <input style={field} type="number" step="0.01" value={shipping} onChange={(e) => setShipping(e.target.value)} placeholder="not deducted from profit" />
           </div>
           <div />
         </div>
-      </div>
 
-      {/* Products sold / opened */}
-      <div className="label" style={{ fontWeight: 700, margin: '18px 0 8px' }}>PRODUCTS SOLD / OPENED <span className="note" style={{ fontWeight: 400 }}>(the TOTAL each product took — not a per-unit price)</span></div>
-      {!streamerId && <p className="note" style={{ marginTop: 0 }}>Select a streamer to load their stock.</p>}
-      {lines.map((l, i) => (
-        <div key={i} className="row2 line-row" style={{ gridTemplateColumns: '2fr 1fr 1fr auto', alignItems: 'end', gap: 10, marginBottom: 8 }}>
-          <div className="field" style={{ marginBottom: 0 }}>
-            {i === 0 && <label>Product</label>}
-            <SearchSelect
-              value={l.stockItemId} onChange={(v) => setLine(i, 'stockItemId', v)} disabled={!streamerId}
-              placeholder={streamerId ? 'Select a product' : 'Select a streamer first'}
-              emptyText="Nothing on the shelf matches that"
-              options={ownStock.map((o) => ({ id: o.id, label: o.product + (o.vat === 'second_hand' ? ' · 2nd-hand' : ''), note: `${o.qty} · ${gbp(o.cost)}` }))} />
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            {i === 0 && <label>Qty</label>}
-            <input style={field} type="number" placeholder="Qty" value={l.qty} onChange={(e) => setLine(i, 'qty', e.target.value)} />
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            {i === 0 && <label>Sold for (£)</label>}
-            <input style={field} type="number" placeholder="£ total" value={l.price} onChange={(e) => setLine(i, 'price', e.target.value)} />
-          </div>
-          <button onClick={() => setLines(lines.length > 1 ? lines.filter((_, idx) => idx !== i) : lines)} style={{ ...field, cursor: 'pointer', background: 'transparent', color: 'var(--muted)', marginBottom: 0 }} title="Remove">×</button>
-        </div>
-      ))}
-      <button onClick={addLine} style={{ ...field, cursor: 'pointer' }}>+ Add another stream product</button>
-      {streamerId && heldItems.length === 0 && (
-        <div style={{ fontSize: 12, color: 'var(--orange)', marginTop: 6 }}>No stock on this streamer’s shelf yet — issue stock to them under <strong>Move stock</strong> first.</div>
-      )}
-
-      {/* Giveaways — stock given away (write-off), not sold */}
-      <div style={{ marginTop: 18 }}>
-        <div className="label" style={{ fontWeight: 700, marginBottom: 6 }}>GIVEAWAYS <span className="note" style={{ fontWeight: 400 }}>· comes off the shelf, £0 revenue</span></div>
-        {giveaways.map((g, i) => (
-          <div key={i} className="row2 line-row" style={{ gridTemplateColumns: '2fr 1fr auto', alignItems: 'end', gap: 10, marginBottom: 8 }}>
+        {/* Products sold / opened */}
+        <div style={groupLabel}>Products sold / opened <span className="note" style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(the TOTAL each product took — not a per-unit price)</span></div>
+        {!streamerId && <p className="note" style={{ marginTop: 0 }}>Select a streamer to load their stock.</p>}
+        {lines.map((l, i) => (
+          <div key={i} className="row2 line-row" style={{ gridTemplateColumns: '2fr 1fr 1fr auto', alignItems: 'end', gap: 10, marginBottom: 8 }}>
             <div className="field" style={{ marginBottom: 0 }}>
-              <SearchSelect value={g.stockItemId} onChange={(v) => setGiveaway(i, 'stockItemId', v)} disabled={!streamerId}
-                placeholder="Select a product" emptyText="Nothing on the shelf matches that"
-                options={ownStock.map((o) => ({ id: o.id, label: o.product, note: `${o.qty}` }))} />
+              {i === 0 && <label>Product</label>}
+              <SearchSelect
+                value={l.stockItemId} onChange={(v) => setLine(i, 'stockItemId', v)} disabled={!streamerId}
+                placeholder={streamerId ? 'Select a product' : 'Select a streamer first'}
+                emptyText="Nothing on the shelf matches that"
+                options={ownStock.map((o) => ({ id: o.id, label: o.product + (o.vat === 'second_hand' ? ' · 2nd-hand' : ''), note: `${o.qty} · ${gbp(o.cost)}` }))} />
             </div>
-            <div className="field" style={{ marginBottom: 0 }}><input style={field} type="number" placeholder="Qty" value={g.qty} onChange={(e) => setGiveaway(i, 'qty', e.target.value)} /></div>
-            <button onClick={() => setGiveaways(giveaways.filter((_, idx) => idx !== i))} style={{ ...field, cursor: 'pointer', background: 'transparent', color: 'var(--muted)', marginBottom: 0 }}>×</button>
+            <div className="field" style={{ marginBottom: 0 }}>
+              {i === 0 && <label>Qty</label>}
+              <input style={field} type="number" placeholder="Qty" value={l.qty} onChange={(e) => setLine(i, 'qty', e.target.value)} />
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              {i === 0 && <label>Sold for (£)</label>}
+              <input style={field} type="number" placeholder="£ total" value={l.price} onChange={(e) => setLine(i, 'price', e.target.value)} />
+            </div>
+            <button onClick={() => setLines(lines.length > 1 ? lines.filter((_, idx) => idx !== i) : lines)} style={{ ...field, cursor: 'pointer', background: 'transparent', color: 'var(--muted)', marginBottom: 0 }} title="Remove">×</button>
           </div>
         ))}
-        <button onClick={addGiveaway} disabled={!streamerId} style={{ ...field, cursor: 'pointer' }}>+ Add giveaway</button>
-      </div>
+        {streamerId && heldItems.length === 0 && (
+          <div style={{ fontSize: 12, color: 'var(--orange)', margin: '6px 0' }}>No stock on this streamer’s shelf yet — issue stock to them under <strong>Move stock</strong> first.</div>
+        )}
 
-      {/* Singles — loose cards sold alongside boxes */}
-      <div style={{ marginTop: 18 }}>
-        {!showSingles ? (
-          <button onClick={() => setShowSingles(true)} style={{ ...field, cursor: 'pointer' }}>+ Add singles</button>
-        ) : (
-          <div className="panel">
-            <div className="label" style={{ fontWeight: 700, marginBottom: 8 }}>SINGLES <span className="note" style={{ fontWeight: 400 }}>· loose cards sold alongside boxes</span></div>
+        {/* Add buttons — grouped inline, like V1 */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+          <button onClick={addLine} style={addBtn}>+ Add another stream product</button>
+          <button onClick={addGiveaway} disabled={!streamerId} style={addBtn}>+ Add giveaway</button>
+          <button onClick={addBrokered} style={addBtn}>+ Add brokered deal</button>
+          {!showSingles && <button onClick={() => setShowSingles(true)} style={addBtn}>+ Add singles</button>}
+        </div>
+
+        {/* Giveaways — stock given away (write-off), not sold */}
+        {giveaways.length > 0 && (
+          <>
+            <div style={groupLabel}>Giveaways <span className="note" style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>· comes off the shelf, £0 revenue</span></div>
+            {giveaways.map((g, i) => (
+              <div key={i} className="row2 line-row" style={{ gridTemplateColumns: '2fr 1fr auto', alignItems: 'end', gap: 10, marginBottom: 8 }}>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <SearchSelect value={g.stockItemId} onChange={(v) => setGiveaway(i, 'stockItemId', v)} disabled={!streamerId}
+                    placeholder="Select a product" emptyText="Nothing on the shelf matches that"
+                    options={ownStock.map((o) => ({ id: o.id, label: o.product, note: `${o.qty}` }))} />
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}><input style={field} type="number" placeholder="Qty" value={g.qty} onChange={(e) => setGiveaway(i, 'qty', e.target.value)} /></div>
+                <button onClick={() => setGiveaways(giveaways.filter((_, idx) => idx !== i))} style={{ ...field, cursor: 'pointer', background: 'transparent', color: 'var(--muted)', marginBottom: 0 }}>×</button>
+              </div>
+            ))}
+          </>
+        )}
+
+        {/* Brokered deals — ran through the show, owned by someone else */}
+        {brokered.length > 0 && (
+          <>
+            <div style={groupLabel}>Brokered deals <span className="note" style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>· credited to the deal owner, not the streamer; no stock comes off a shelf</span></div>
+            {brokered.map((b, i) => (
+              <div key={i} className="row2 line-row" style={{ gridTemplateColumns: '2fr 1fr 1fr auto', alignItems: 'end', gap: 10, marginBottom: 8 }}>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  {i === 0 && <label>Product</label>}
+                  <SearchSelect value={b.stockItemId} onChange={(v) => setBrokeredLine(i, 'stockItemId', v)}
+                    placeholder="Select a product" emptyText="No products"
+                    options={catalogue.map((s) => ({ id: s.id, label: s.product, note: s.type || '' }))} />
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  {i === 0 && <label>Qty</label>}
+                  <input style={field} type="number" placeholder="Qty" value={b.qty} onChange={(e) => setBrokeredLine(i, 'qty', e.target.value)} />
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  {i === 0 && <label>Sold for (£)</label>}
+                  <input style={field} type="number" placeholder="£ total" value={b.price} onChange={(e) => setBrokeredLine(i, 'price', e.target.value)} />
+                </div>
+                <button onClick={() => setBrokered(brokered.filter((_, idx) => idx !== i))} style={{ ...field, cursor: 'pointer', background: 'transparent', color: 'var(--muted)', marginBottom: 0 }}>×</button>
+                <div className="field" style={{ marginBottom: 0, gridColumn: '1 / -1' }}>
+                  <label>Deal owner <span style={{ color: 'var(--red)' }}>*</span></label>
+                  <select style={field} value={b.ownerId} onChange={(e) => setBrokeredLine(i, 'ownerId', e.target.value)}>
+                    <option value="">Who owns this deal…</option>
+                    {scoped.profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {/* Singles — loose cards sold alongside boxes */}
+        {showSingles && (
+          <>
+            <div style={groupLabel}>Singles <span className="note" style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>· loose cards sold alongside boxes</span></div>
             <div className="row2" style={{ gridTemplateColumns: '1fr 1fr 1fr auto', alignItems: 'end' }}>
               <div className="field" style={{ marginBottom: 0 }}><label>Qty</label><input style={field} type="number" value={singlesQty} onChange={(e) => setSinglesQty(e.target.value)} /></div>
               <div className="field" style={{ marginBottom: 0 }}><label>Avg cost / single</label><input style={field} type="number" value={singlesAvg} onChange={(e) => setSinglesAvg(e.target.value)} /></div>
               <div className="field" style={{ marginBottom: 0 }}><label>Singles revenue</label><input style={field} type="number" value={singlesRev} onChange={(e) => setSinglesRev(e.target.value)} /></div>
               <button onClick={() => { setShowSingles(false); setSinglesQty(''); setSinglesAvg(''); setSinglesRev('') }} style={{ ...field, cursor: 'pointer', background: 'transparent', color: 'var(--muted)', marginBottom: 0 }}>Remove</button>
             </div>
-          </div>
+          </>
         )}
-      </div>
 
-      {/* Live money preview — profit standout follows input */}
-      <div style={{ marginTop: 22, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <StatCard label="Revenue" value={gbp0(revBasis)} accent="#111" sub={netApplied ? 'net of fees' : 'gross'} />
-        <StatCard label="Revenue / hour" value={revPerHour != null ? gbp0(revPerHour) : '—'} />
-        <StatCard label="Total stock cost" value={gbp0(money.costPaid)} accent="#c0392b" />
-        <StatCard label="VAT owed" value={gbp0(money.vatOwed)} accent="#b8700a" />
-        <StatCard label={netApplied ? 'Profit (take-home)' : 'Profit'} value={gbp0(money.trueProfit)} accent="#1a7f37" sub={`${pct(money.netMarginPct)} margin`} />
-        {money.shipping > 0 && <StatCard label="Shipping (not deducted)" value={gbp0(money.shipping)} />}
-      </div>
-      <p className="note" style={{ marginTop: 12 }}>
-        Live preview via the money engine · VAT computed per product line (standard vs second-hand).
-        {netApplied ? ' Net profit shown as the standout.' : ' Add a net figure to see true take-home.'}
-      </p>
+        {/* Live money preview — inside the card, like V1 */}
+        <div style={{ marginTop: 22, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <StatCard label="Revenue" value={gbp0(revBasis)} accent="#111" sub={netApplied ? 'net of fees' : 'gross'} />
+          <StatCard label="Revenue / hour" value={revPerHour != null ? gbp0(revPerHour) : '—'} />
+          <StatCard label="Total stock cost" value={gbp0(money.costPaid)} accent="#c0392b" />
+          <StatCard label="VAT owed" value={gbp0(money.vatOwed)} accent="#b8700a" />
+          <StatCard label={netApplied ? 'Profit (take-home)' : 'Profit'} value={gbp0(money.trueProfit)} accent="#1a7f37" sub={`${pct(money.netMarginPct)} margin`} />
+          {money.shipping > 0 && <StatCard label="Shipping (not deducted)" value={gbp0(money.shipping)} />}
+        </div>
+        <p className="note" style={{ marginTop: 12 }}>
+          Live preview via the money engine · VAT computed per product line (standard vs second-hand).
+          {netApplied ? ' Net profit shown as the standout.' : ' Add a net figure to see true take-home.'}
+        </p>
 
-      {/* Save */}
-      <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button className="btn" onClick={save} disabled={saving || !streamerId || !title.trim() || !streamUrl.trim() || !(Number(gross) > 0)}>
-          {saving ? 'Saving…' : 'Review & submit'}
-        </button>
-        {msg && <span style={{ color: 'var(--good)', fontWeight: 600 }}>{msg}</span>}
-        {err && <span style={{ color: 'var(--red)' }}>{err}</span>}
+        {/* Save */}
+        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button className="btn" onClick={save} disabled={saving || !streamerId || !title.trim() || !streamUrl.trim() || !(Number(gross) > 0)}>
+            {saving ? 'Saving…' : 'Review & submit'}
+          </button>
+          {msg && <span style={{ color: 'var(--good)', fontWeight: 600 }}>{msg}</span>}
+          {err && <span style={{ color: 'var(--red)' }}>{err}</span>}
+        </div>
       </div>
     </div>
   )
