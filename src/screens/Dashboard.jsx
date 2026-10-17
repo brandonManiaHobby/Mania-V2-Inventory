@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { computeStream, sumMoney } from '../money'
+import { computeStream, sumMoney, monthlyProjection } from '../money'
 import { gbp0, gbp, pct, int, monthKey, canonPlatform, parseLocalDate, toDateKey, daysBetween, displayDate } from '../data'
 import MoneyToggle, { VIEW_FIELD } from '../components/MoneyToggle'
 import StatCard from '../components/StatCard'
@@ -109,11 +109,12 @@ export default function Dashboard({ scoped }) {
     return { rows, series, axisMax, ticks, unit }
   }, [streams, split, measure, field.value, from, to])
 
-  const monthly = useMemo(() => {
-    const bm = {}
-    for (const s of streams) { const m = monthKey(s.streamDate); if (!m) continue; bm[m] = bm[m] || { g: 0, n: 0 }; bm[m].g += s.m.gross; bm[m].n += s.m.net }
-    const ms = Object.keys(bm).sort(); return { ms, data: ms.map((m) => bm[m]) }
-  }, [streams])
+  // Revenue by month — ALWAYS the last 6 completed months + the current month
+  // (independent of the range filter above), so the projection has something to
+  // learn from. Gross = total sales. The current month is projected forward.
+  const monthlyProj = useMemo(() => monthlyProjection(
+    scoped.streams, (s) => s.streamDate, (s) => Number(s.totalSales) || 0, 6,
+  ), [scoped])
 
   const seg = (items, val, set) => (
     <div style={{ display: 'inline-flex', gap: 2, padding: 2, background: '#f0efec', borderRadius: 999 }}>
@@ -221,13 +222,24 @@ export default function Dashboard({ scoped }) {
         )}
       </div>
 
-      {/* Revenue by month — bars + projection trend */}
+      {/* Revenue by month — last 6 months + the current month projected */}
       <div style={{ marginTop: 18, padding: 16, border: '1px solid #eee', borderRadius: 12, background: '#fff' }}>
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>Revenue by month — with projection</div>
-        {monthly.ms.length === 0 ? <p style={{ color: '#888' }}>No data.</p> : (
-          <BarsChart labels={monthly.ms.map((m) => displayDate(m + '-01', { month: 'short', year: '2-digit' }))}
-            values={monthly.data.map((d) => d.g)} formatY={gbp0} projLabel="Projected" />
-        )}
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+          <div style={{ fontWeight: 700 }}>Revenue by month — with projection</div>
+          <div style={{ fontSize: 12, color: '#999' }}>
+            {displayDate(monthlyProj.curKey + '-01', { month: 'long', year: 'numeric' })} projected <strong style={{ color: '#b4440a' }}>{gbp0(monthlyProj.projection.projected)}</strong> · {gbp0(monthlyProj.mtd)} so far · {monthlyProj.projection.basis}
+          </div>
+        </div>
+        <BarsChart
+          labels={monthlyProj.keys.map((m) => displayDate(m + '-01', { month: 'short', year: '2-digit' }))}
+          values={monthlyProj.values}
+          formatY={gbp0}
+          barColor="#ff6a00"
+          showProjection={false}
+          projLabel="Projected"
+          projectedBar={{ index: monthlyProj.curIndex, total: monthlyProj.projection.projected, color: '#b4440a' }}
+          height={230}
+        />
       </div>
 
       {/* Cursor-following tooltip for the contribution chart */}

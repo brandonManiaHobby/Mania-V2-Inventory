@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { computeStream, computeMoney, sumMoney } from '../money'
+import { computeStream, computeMoney, sumMoney, projectPeriod, monthFractionElapsed } from '../money'
 import { gbp0, gbp, pct, int, monthKey, parseLocalDate, todayKey } from '../data'
 import MoneyToggle, { VIEW_FIELD } from '../components/MoneyToggle'
 import StatCard from '../components/StatCard'
@@ -294,12 +294,21 @@ function StreamerDeep({ r, scoped, view, field, vatOf }) {
           </strong>
         </div>
       )}
-      {dive.monthly.length > 1 && (
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Month by month ({LABEL[view]})</div>
-          <BarsChart height={180} labels={dive.monthly.map((x) => monL(x.m))} values={dive.monthly.map((x) => x.t[field.value])} formatY={gbp0} projLabel="Projected" />
-        </div>
-      )}
+      {dive.monthly.length > 1 && (() => {
+        const now = new Date()
+        const curKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+        const vals = dive.monthly.map((x) => x.t[field.value])
+        const lastIsCur = dive.monthly[dive.monthly.length - 1].m === curKey
+        const proj = lastIsCur ? projectPeriod(vals.slice(0, -1), vals[vals.length - 1], monthFractionElapsed(now)) : null
+        return (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Month by month ({LABEL[view]}){proj ? ` · ${monL(curKey)} projected ${gbp0(proj.projected)}` : ''}</div>
+            <BarsChart height={180} labels={dive.monthly.map((x) => monL(x.m))} values={vals} formatY={gbp0}
+              showProjection={false} projLabel="Projected"
+              projectedBar={proj ? { index: vals.length - 1, total: proj.projected, color: '#b4440a' } : null} />
+          </div>
+        )
+      })()}
       {dive.brokeredSales > 0 && (
         <div style={{ fontSize: 13, marginBottom: 12 }}>
           <span style={{ color: '#999' }}>Owned vs brokered: </span>
