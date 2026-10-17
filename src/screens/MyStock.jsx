@@ -69,10 +69,16 @@ export default function MyStock({ scoped }) {
     const byProduct = {}
     for (const h of mine) {
       const item = scoped.stockItems.find((s) => s.id === h.stockItemId)
-      const r = byProduct[h.stockItemId] || (byProduct[h.stockItemId] = { id: h.stockItemId, product: item?.product || '—', category: item?.type || 'Uncategorised', qty: 0, value: 0 })
+      const r = byProduct[h.stockItemId] || (byProduct[h.stockItemId] = { id: h.stockItemId, product: item?.product || '—', category: item?.type || 'Uncategorised', qty: 0, value: 0, breakPrice: item?.breakPrice ?? null })
       r.qty += h.qty; r.value += h.qty * h.unitCost
     }
     let rows = Object.values(byProduct)
+    // per-unit cost + a break value (break price where set, else cost) per row.
+    rows = rows.map((r) => {
+      const unitCost = r.qty > 0 ? r.value / r.qty : 0
+      const unitShown = r.breakPrice != null ? r.breakPrice : unitCost
+      return { ...r, unitCost, unitShown, breakValue: r.qty * unitShown }
+    })
     if (q) rows = rows.filter((r) => (r.product + ' ' + r.category).toLowerCase().includes(q.toLowerCase()))
     const cats = {}
     for (const r of rows) { (cats[r.category] || (cats[r.category] = [])).push(r) }
@@ -81,11 +87,14 @@ export default function MyStock({ scoped }) {
       items: items.sort((a, b) => b.value - a.value),
       units: items.reduce((a, r) => a + r.qty, 0),
       value: items.reduce((a, r) => a + r.value, 0),
+      breakValue: items.reduce((a, r) => a + r.breakValue, 0),
     })).sort((a, b) => b.value - a.value)
     const totalUnits = rows.reduce((a, r) => a + r.qty, 0)
     const totalValue = rows.reduce((a, r) => a + r.value, 0)
-    return { groups, totalUnits, totalValue, count: rows.length }
+    const totalBreakValue = rows.reduce((a, r) => a + r.breakValue, 0)
+    return { groups, totalUnits, totalValue, totalBreakValue, count: rows.length }
   }, [scoped, uid, q])
+  const seesCost = !!scoped.cap?.seesCost
 
   const th = { textAlign: 'left', fontSize: 11, color: 'var(--muted)', fontWeight: 700, padding: '0 10px 6px' }
   const td = { padding: '7px 10px', fontSize: 13, borderTop: '1px solid var(--line)' }
@@ -117,13 +126,14 @@ export default function MyStock({ scoped }) {
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', margin: '20px 0 12px' }}>
         <StatCard label="Products on shelf" value={int(shelf.count)} />
         <StatCard label="Total units" value={int(shelf.totalUnits)} />
-        <StatCard label="Stock value" value={gbp(shelf.totalValue)} />
+        <StatCard label={seesCost ? 'Stock value (cost)' : 'Shelf value (break)'} value={gbp(seesCost ? shelf.totalValue : shelf.totalBreakValue)} />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
         <div style={{ fontWeight: 700 }}>On hand ({int(shelf.totalUnits)} units)</div>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your stock…"
           style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--line)', font: 'inherit', background: 'var(--card)', color: 'var(--ink)', minWidth: 220 }} />
       </div>
+      {!seesCost && <div className="note" style={{ marginBottom: 8 }}>Showing the break price (what breakers pay). <span style={{ opacity: 0.8 }}>* = no break price set, so cost is shown instead.</span></div>}
 
       {shelf.groups.length === 0 ? (
         <p className="note">Nothing on your shelf right now.</p>
@@ -131,18 +141,18 @@ export default function MyStock({ scoped }) {
         <div key={g.category} className="panel" style={{ padding: 0, overflow: 'hidden', marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg)', borderBottom: '1px solid var(--line)' }}>
             <span style={{ fontWeight: 800 }}>{g.category}</span>
-            <span className="note">{int(g.units)} units · {gbp0(g.value)}</span>
+            <span className="note">{int(g.units)} units · {gbp0(seesCost ? g.value : g.breakValue)}</span>
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', minWidth: 420 }}>
-              <thead><tr><th style={th}>Product</th><th style={{ ...th, textAlign: 'right' }}>Cost / unit</th><th style={{ ...th, textAlign: 'right' }}>Qty on hand</th><th style={{ ...th, textAlign: 'right' }}>Value</th></tr></thead>
+              <thead><tr><th style={th}>Product</th><th style={{ ...th, textAlign: 'right' }}>{seesCost ? 'Cost / unit' : 'Break price'}</th><th style={{ ...th, textAlign: 'right' }}>Qty on hand</th><th style={{ ...th, textAlign: 'right' }}>Value</th></tr></thead>
               <tbody>
                 {g.items.map((r) => (
                   <tr key={r.id}>
                     <td style={td}>{shortName(r.product)}</td>
-                    <td style={{ ...td, textAlign: 'right', color: 'var(--muted)' }}>{gbp(r.qty > 0 ? r.value / r.qty : 0)}</td>
+                    <td style={{ ...td, textAlign: 'right', color: 'var(--muted)' }}>{gbp(seesCost ? r.unitCost : r.unitShown)}{!seesCost && r.breakPrice == null ? ' *' : ''}</td>
                     <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{int(r.qty)}</td>
-                    <td style={{ ...td, textAlign: 'right' }}>{gbp0(r.value)}</td>
+                    <td style={{ ...td, textAlign: 'right' }}>{gbp0(seesCost ? r.value : r.breakValue)}</td>
                   </tr>
                 ))}
               </tbody>

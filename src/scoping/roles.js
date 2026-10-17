@@ -45,11 +45,14 @@ export function capabilities(profile) {
   // A shelf-holder is anyone who can be issued stock and sell it on stream —
   // streamers and leads, plus admins/managers who run breaks themselves.
   const hasOwnShelf = isStreamer || isLead || isAdmin || isManager
+  // Who sees true unit COST. Everyone else sees the break price (the breakers'
+  // price) when one is set, falling back to cost only if no break price exists.
+  const seesCost = isAdmin || isManager
 
   return {
     role: r, isAdmin, isManager, isLead, isWarehouse, isStreamer,
     seesAnalytics, seesAllDepartments, seesInventory, canMoveStock,
-    canRecordStream, hasOwnShelf,
+    canRecordStream, hasOwnShelf, seesCost,
     department: profile?.department ?? null,
     userId: profile?.id ?? null,
   }

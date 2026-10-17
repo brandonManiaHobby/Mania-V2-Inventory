@@ -161,8 +161,11 @@ export default function RecordStream({ scoped }) {
     const hs = scoped.holdings.filter((h) => h.holderId === streamerId && h.stockItemId === s.id && h.qty > 0)
     const qty = hs.reduce((a, h) => a + h.qty, 0)
     const cost = hs.sort((a, b) => (b.waveNo || 0) - (a.waveNo || 0))[0]?.unitCost || 0
-    return { id: s.id, product: s.product, vat: s.vatTreatment, qty, cost }
+    return { id: s.id, product: s.product, vat: s.vatTreatment, qty, cost, breakPrice: s.breakPrice ?? null }
   }), [heldItems, scoped, streamerId])
+  // Streamers see the break price (what breakers pay); managers/admins see cost.
+  const seesCost = !!scoped.cap?.seesCost
+  const unitNote = (o) => seesCost ? gbp(o.cost) : gbp(o.breakPrice != null ? o.breakPrice : o.cost)
 
   const catalogue = useMemo(() => scoped.stockItems.filter((s) => !s.archived).sort((a, b) => a.product.localeCompare(b.product)), [scoped])
 
@@ -323,7 +326,7 @@ export default function RecordStream({ scoped }) {
                 value={l.stockItemId} onChange={(v) => setLine(i, 'stockItemId', v)} disabled={!streamerId}
                 placeholder={streamerId ? 'Select a product' : 'Select a streamer first'}
                 emptyText="Nothing on the shelf matches that"
-                options={ownStock.map((o) => ({ id: o.id, label: o.product + (o.vat === 'second_hand' ? ' · 2nd-hand' : ''), note: `${o.qty} · ${gbp(o.cost)}` }))} />
+                options={ownStock.map((o) => ({ id: o.id, label: o.product + (o.vat === 'second_hand' ? ' · 2nd-hand' : ''), note: `${o.qty} · ${unitNote(o)}` }))} />
             </div>
             <div className="field" style={{ marginBottom: 0 }}>
               {i === 0 && <label>Qty</label>}
