@@ -141,15 +141,32 @@ function normProfile(r) {
 // loadSource() fetches everything once and returns the single shared object.
 // Screens read from this object; they never call supabase themselves.
 
+// PostgREST caps a plain select at 1000 rows. Several tables (stream_lines,
+// holdings, streams) are already past that, so a bare select silently drops the
+// newest rows — e.g. a just-recorded stream's lines. Page through in 1000-row
+// chunks until a short page comes back, so we always load EVERYTHING.
+const PAGE = 1000
+async function fetchAll(table, select = '*') {
+  let from = 0, all = []
+  for (;;) {
+    const { data, error } = await supabase.from(table).select(select).range(from, from + PAGE - 1)
+    if (error) return { data: null, error }
+    all = all.concat(data || [])
+    if (!data || data.length < PAGE) break
+    from += PAGE
+  }
+  return { data: all, error: null }
+}
+
 export async function loadSource() {
   const [items, waves, holdings, streams, lines, distro, profiles] = await Promise.all([
-    supabase.from('stock_items').select('*'),
-    supabase.from('stock_waves').select('*'),
-    supabase.from('stock_holdings').select('*'),
-    supabase.from('v_streams_scoped').select('*'),
-    supabase.from('stream_lines').select('*'),
-    supabase.from('distro_sales').select('*'),
-    supabase.from('profiles').select('*'),
+    fetchAll('stock_items'),
+    fetchAll('stock_waves'),
+    fetchAll('stock_holdings'),
+    fetchAll('v_streams_scoped'),
+    fetchAll('stream_lines'),
+    fetchAll('distro_sales'),
+    fetchAll('profiles'),
   ])
 
   const firstErr = [items, waves, holdings, streams, lines, distro, profiles]

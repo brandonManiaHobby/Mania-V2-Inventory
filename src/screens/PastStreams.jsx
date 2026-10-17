@@ -10,6 +10,11 @@ import { gbp0, gbp, pct, displayDate, todayKey, useSource, deleteStream, editStr
 // ============================================================
 const short = (p) => String(p).replace(/^Pokemon TCG /, '').replace(/^Topps® /, '').replace(/^Topps /, '')
 const PLATFORMS = ['eBay Live', 'Whatnot', 'TikTok Shop', 'Fanatics']
+const hoursOf = (s) => {
+  if (!s.streamStart || !s.streamEnd) return 0
+  const p = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) + (m || 0) / 60 }
+  const d = p(s.streamEnd) - p(s.streamStart); return d > 0 ? d : 0
+}
 
 export default function PastStreams({ scoped }) {
   const { refresh } = useSource()
@@ -22,14 +27,14 @@ export default function PastStreams({ scoped }) {
 
   const rows = useMemo(() => {
     return [...scoped.streams]
-      .filter((s) => !q || (s.title || '').toLowerCase().includes(q.toLowerCase()) || (s.streamerName || '').toLowerCase().includes(q.toLowerCase()) || (s.platform || '').toLowerCase().includes(q.toLowerCase()))
+      .filter((s) => !q || (s.title || '').toLowerCase().includes(q.toLowerCase()) || (s.streamerName || '').toLowerCase().includes(q.toLowerCase()) || (s.platform || '').toLowerCase().includes(q.toLowerCase()) || (s.channel || '').toLowerCase().includes(q.toLowerCase()))
       .sort((a, b) => (b.streamDate || '').localeCompare(a.streamDate || '') || (b.createdAt || '').localeCompare(a.createdAt || ''))
       .map((s) => {
         const lines = scoped.streamLines.filter((l) => l.streamId === s.id)
         const live = lines.filter((l) => !l.brokered)
         const m = computeStream({ gross: s.totalSales, net: s.net, shipping: s.shipping },
           live.map((l) => ({ qty: l.qty, unitCost: l.unitCost, lineTotal: l.lineTotal, brokered: false, stockItemId: l.stockItemId })), vatOf)
-        return { s, lines, m }
+        return { s, lines, m, hours: hoursOf(s) }
       })
   }, [scoped, q])
 
@@ -40,82 +45,142 @@ export default function PastStreams({ scoped }) {
     catch (e) { setErr(e.message) } finally { setBusy(null) }
   }
 
+  const open = rows.find((r) => r.s.id === openId)
+  const th = { textAlign: 'left', fontSize: 11, color: 'var(--muted)', fontWeight: 700, padding: '0 12px 8px', textTransform: 'uppercase', letterSpacing: 0.3 }
+  const td = { padding: '10px 12px', fontSize: 13, borderTop: '1px solid var(--line)', verticalAlign: 'top' }
+
   return (
     <div>
+      {open && (
+        <ReceiptModal row={open} scoped={scoped} vatOf={vatOf}
+          editing={editId === open.s.id}
+          onEdit={() => setEditId(open.s.id)}
+          onDelete={() => del(open.s.id)} busy={busy === open.s.id}
+          onCancelEdit={() => setEditId(null)}
+          onSaved={async () => { setEditId(null); await refresh() }}
+          onClose={() => { setOpenId(null); setEditId(null) }} />
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
         <h2 style={{ margin: 0 }}>Past streams</h2>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title / streamer / platform…"
-          style={{ padding: '8px 12px', borderRadius: 999, border: '1px solid #ddd', font: 'inherit', width: 240 }} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title / streamer / platform / channel…"
+          style={{ padding: '9px 14px', borderRadius: 11, border: '1px solid var(--line)', font: 'inherit', width: 300, background: 'var(--card)', color: 'var(--ink)' }} />
       </div>
-      <div style={{ fontSize: 12, color: '#999', margin: '12px 0 6px' }}>{rows.length} streams · tap for the receipt</div>
+      <div style={{ fontSize: 12, color: '#999', margin: '12px 0 8px' }}>{rows.length} streams · click a row for the receipt</div>
       {err && <div style={{ color: '#c82828', marginBottom: 8 }}>{err}</div>}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {rows.map(({ s, lines, m }) => {
-          const open = openId === s.id
-          const netApplied = s.net != null
-          return (
-            <div key={s.id} style={{ border: '1px solid #eee', borderRadius: 12, background: '#fff', overflow: 'hidden' }}>
-              <button onClick={() => { setOpenId(open ? null : s.id); setEditId(null) }}
-                style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '11px 14px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', font: 'inherit', flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 200px', minWidth: 160 }}>
-                  <div style={{ fontWeight: 600 }}>{s.title || short(lines[0]?.product || 'Stream')}</div>
-                  <div style={{ fontSize: 12, color: '#999' }}>{displayDate(s.streamDate)} · {s.streamerName}{s.platform ? ` · ${s.platform}` : ''}{s.channel ? ` · ${s.channel}` : ''}</div>
-                </div>
-                <div style={{ textAlign: 'right', minWidth: 90 }}>
-                  <div style={{ fontWeight: 700, fontSize: 17 }}>{gbp0(netApplied ? m.trueProfit : m.gross)}</div>
-                  <div style={{ fontSize: 11, color: '#888' }}>{netApplied ? 'net profit' : 'gross'}</div>
-                </div>
-              </button>
+      <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
+            <thead><tr>
+              <th style={th}>Date</th><th style={th}>Streamer</th><th style={th}>Platform</th>
+              <th style={{ ...th, textAlign: 'right' }}>Revenue</th><th style={{ ...th, textAlign: 'right' }}>Profit</th><th style={th}>Stream</th>
+            </tr></thead>
+            <tbody>
+              {rows.map(({ s, m }) => {
+                const netApplied = s.net != null
+                const rev = netApplied ? m.net : m.gross
+                return (
+                  <tr key={s.id} onClick={() => { setOpenId(s.id); setEditId(null) }} style={{ cursor: 'pointer' }}>
+                    <td style={{ ...td, whiteSpace: 'nowrap' }}>{displayDate(s.streamDate, { day: '2-digit', month: 'short', year: '2-digit' })}</td>
+                    <td style={{ ...td, whiteSpace: 'nowrap' }}>{s.streamerName || '—'}</td>
+                    <td style={{ ...td, whiteSpace: 'nowrap', color: 'var(--muted)' }}>{s.platform || '—'}</td>
+                    <td style={{ ...td, textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{gbp0(rev)}</td>
+                    <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap', color: m.trueProfit >= 0 ? 'var(--good)' : 'var(--red)', fontWeight: 600 }}>{gbp0(m.trueProfit)}</td>
+                    <td style={td}>
+                      <div style={{ fontWeight: 600 }}>{s.title || short(scoped.streamLines.find((l) => l.streamId === s.id)?.product || 'Stream')}</div>
+                      <div style={{ fontSize: 12, color: '#999' }}>{[s.channel, s.streamType].filter(Boolean).join(' · ')}</div>
+                    </td>
+                  </tr>
+                )
+              })}
+              {rows.length === 0 && <tr><td colSpan={6} style={{ ...td, color: '#888' }}>No streams match.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-              {s.streamUrl && (
-                <div style={{ padding: '0 14px 8px', marginTop: -4 }}>
-                  <a href={s.streamUrl} target="_blank" rel="noopener noreferrer"
-                    style={{ fontSize: 12, color: '#2a52be', textDecoration: 'none', fontWeight: 600 }}>
-                    ↗ Watch stream
-                  </a>
-                </div>
-              )}
+// Click-through receipt — the V1 tile: who/where/when up top, the money band,
+// then WHAT RAN per product, with Edit / Delete.
+function ReceiptModal({ row, scoped, vatOf, editing, onEdit, onDelete, busy, onCancelEdit, onSaved, onClose }) {
+  const { s, lines, m, hours } = row
+  const netApplied = s.net != null
+  const rev = netApplied ? m.net : m.gross
+  const revPerHour = hours > 0 ? rev / hours : null
+  const cell = { flex: '1 1 110px', minWidth: 96 }
+  const lbl = { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.3, color: 'var(--muted)', fontWeight: 700 }
+  const val = { fontSize: 15, fontWeight: 700, marginTop: 2 }
 
-              {open && editId !== s.id && (
-                <div style={{ borderTop: '1px solid #f0f0f0', padding: '12px 14px' }}>
-                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, marginBottom: 12 }}>
-                    {[['Gross', m.gross], netApplied && ['Fees', m.fees], netApplied && ['Net', m.net], ['VAT owed', m.vatOwed], ['Cost', m.costPaid], [netApplied ? 'Net profit' : 'Profit', m.trueProfit]].filter(Boolean).map(([k, v]) => (
-                      <div key={k}><div style={{ color: '#999', fontSize: 11 }}>{k}</div><div style={{ fontWeight: 600 }}>{gbp(v)}</div></div>
-                    ))}
-                    {s.shipping > 0 && <div><div style={{ color: '#999', fontSize: 11 }}>Shipping</div><div style={{ fontWeight: 600 }}>{gbp(s.shipping)}</div></div>}
-                  </div>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 360 }}>
-                      <thead><tr style={{ color: '#999', fontSize: 12, textAlign: 'right' }}><th style={{ textAlign: 'left' }}>Product</th><th>Qty</th><th>Sold</th></tr></thead>
-                      <tbody>
-                        {lines.map((l) => (
-                          <tr key={l.id} style={{ borderTop: '1px solid #f5f5f5', textAlign: 'right' }}>
-                            <td style={{ textAlign: 'left', padding: '4px 0' }}>{short(l.product)}{l.brokered ? ' (brokered)' : ''}</td>
-                            <td>{l.qty}</td><td>{gbp0(l.lineTotal)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-                    <button onClick={() => setEditId(s.id)} style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #ddd', background: '#faf9f7', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
-                    <button onClick={() => del(s.id)} disabled={busy === s.id} style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #e0b0b0', background: '#fff', color: '#c82828', cursor: 'pointer', fontWeight: 600 }}>
-                      {busy === s.id ? 'Deleting…' : 'Delete stream'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {open && editId === s.id && (
-                <EditForm s={s} lines={lines} scoped={scoped} vatOf={vatOf}
-                  onCancel={() => setEditId(null)}
-                  onSaved={async () => { setEditId(null); await refresh() }} />
-              )}
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 90, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 16px', overflowY: 'auto' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: 20, width: '100%', maxWidth: 620, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, borderLeft: '3px solid var(--orange)', paddingLeft: 10, marginBottom: 14 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 18 }}>{s.title || 'Stream'}</h3>
+            <div className="note" style={{ marginTop: 2 }}>
+              {displayDate(s.streamDate, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+              {s.streamUrl && <> · <a href={s.streamUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#2a52be', fontWeight: 600, textDecoration: 'none' }}>↗ Watch stream</a></>}
             </div>
-          )
-        })}
-        {rows.length === 0 && <p style={{ color: '#888' }}>No streams in scope.</p>}
+          </div>
+          <button onClick={onClose} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--bg)', cursor: 'pointer', font: 'inherit' }}>Close</button>
+        </div>
+
+        {editing ? (
+          <EditForm s={s} lines={lines} scoped={scoped} vatOf={vatOf} onCancel={onCancelEdit} onSaved={onSaved} />
+        ) : (
+          <>
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
+              <div style={cell}><div style={lbl}>Channel</div><div style={val}>{s.channel || '—'}</div></div>
+              <div style={cell}><div style={lbl}>Platform</div><div style={val}>{s.platform || '—'}</div></div>
+              <div style={cell}><div style={lbl}>Streamer</div><div style={val}>{s.streamerName || '—'}</div></div>
+              <div style={cell}><div style={lbl}>Type</div><div style={val}>{s.streamType || '—'}</div></div>
+              <div style={cell}><div style={lbl}>Time</div><div style={val}>{s.streamStart ? `${s.streamStart}${s.streamEnd ? '–' + s.streamEnd : ''}` : '—'}</div><div className="note">{hours > 0 ? hours.toFixed(1) + ' hrs' : ''}</div></div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', padding: '14px', borderRadius: 12, background: 'var(--bg)', marginBottom: 14 }}>
+              <div style={cell}><div style={lbl}>Revenue</div><div style={val}>{gbp(rev)}</div><div className="note">{netApplied ? 'net of fees' : 'gross'}</div></div>
+              {netApplied && <div style={cell}><div style={lbl}>VAT owed</div><div style={val}>{gbp(m.vatOwed)}</div></div>}
+              <div style={cell}><div style={lbl}>Stock cost</div><div style={{ ...val, color: '#c0392b' }}>{gbp(m.costPaid)}</div></div>
+              <div style={cell}><div style={lbl}>Profit</div><div style={{ ...val, color: m.trueProfit >= 0 ? 'var(--good)' : 'var(--red)' }}>{gbp(m.trueProfit)}</div><div className="note">{pct(m.netMarginPct)} margin</div></div>
+              <div style={cell}><div style={lbl}>Revenue / hour</div><div style={val}>{revPerHour != null ? gbp(revPerHour) : '—'}</div></div>
+              {s.shipping > 0 && <div style={cell}><div style={lbl}>Shipping</div><div style={val}>{gbp(s.shipping)}</div></div>}
+            </div>
+
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>What ran</div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 420 }}>
+                <thead><tr style={{ color: 'var(--muted)', fontSize: 11, textAlign: 'right' }}><th style={{ textAlign: 'left' }}>Product</th><th>Qty</th><th>Cost/unit</th><th>Sold</th><th>Profit</th></tr></thead>
+                <tbody>
+                  {lines.map((l) => {
+                    const cost = (Number(l.qty) || 0) * (Number(l.unitCost) || 0)
+                    const profit = (Number(l.lineTotal) || 0) - cost
+                    return (
+                      <tr key={l.id} style={{ borderTop: '1px solid var(--line)', textAlign: 'right' }}>
+                        <td style={{ textAlign: 'left', padding: '5px 0' }}>{short(l.product)}{l.brokered ? ' (brokered)' : ''}</td>
+                        <td>{l.qty}</td>
+                        <td style={{ color: 'var(--muted)' }}>{gbp(l.unitCost || 0)}</td>
+                        <td>{gbp(l.lineTotal)}</td>
+                        <td style={{ color: profit >= 0 ? 'var(--good)' : 'var(--red)' }}>{gbp(profit)}</td>
+                      </tr>
+                    )
+                  })}
+                  {lines.length === 0 && <tr><td colSpan={5} style={{ padding: 8, color: 'var(--muted)' }}>No product lines.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+              <button onClick={onEdit} style={{ padding: '8px 16px', borderRadius: 9, border: '1px solid var(--line)', background: 'var(--bg)', cursor: 'pointer', fontWeight: 600, font: 'inherit' }}>Edit stream</button>
+              <button onClick={onDelete} disabled={busy} style={{ padding: '8px 16px', borderRadius: 9, border: '1px solid #e0b0b0', background: 'var(--card)', color: '#c82828', cursor: 'pointer', fontWeight: 600, font: 'inherit' }}>
+                {busy ? 'Deleting…' : 'Delete stream'}
+              </button>
+            </div>
+            <div className="note" style={{ marginTop: 10 }}>Something wrong? Edit corrects the details; deleting returns the stock and wipes it from all figures.</div>
+          </>
+        )}
       </div>
     </div>
   )

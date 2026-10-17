@@ -1,14 +1,15 @@
-// Bars for actuals + an optional projection line (least-squares trend over the
-// historic bars). Replaces line charts across V2 — bars read the takings, the
-// line reads the trajectory. Pure SVG, theme-aware, no deps.
-export default function BarsChart({ labels = [], values = [], formatY = (v) => v, height = 200, barColor = 'var(--orange)', showProjection = true, projLabel = 'Projected', projectedBar = null }) {
-  // projectedBar: { index, total, color } — draws the gap between the actual bar
-  // and its projected total in `color` (e.g. a dark-orange "projected" cap on the
-  // current, still-running period). Independent of the dashed trend line.
+import { useState, useRef } from 'react'
+
+// Bars for actuals + an optional projection line (least-squares trend) and/or a
+// projected "cap" on one bar. Hover any bar to inspect it (label, value, and any
+// per-bar meta lines — e.g. the stream(s) that made up a day). Pure SVG, theme-
+// aware, no deps.
+export default function BarsChart({ labels = [], values = [], formatY = (v) => v, height = 200, barColor = 'var(--orange)', showProjection = true, projLabel = 'Projected', projectedBar = null, meta = null }) {
+  const [hover, setHover] = useState(null)   // { i, x, y } relative to the container
+  const wrapRef = useRef(null)
   const n = values.length
   if (n === 0) return null
 
-  // least-squares line y = a + b·x over the actual bars
   let projection = null
   if (showProjection && n >= 2) {
     const xs = values.map((_, i) => i)
@@ -30,15 +31,20 @@ export default function BarsChart({ labels = [], values = [], formatY = (v) => v
   const W = Math.max(320, n * 60), H = height
   const plotW = W - padL - padR, plotH = H - padT - padB
   const band = plotW / n
-  // Thick bars that fill the band — leaves only a slim gutter either side.
   const barW = band * 0.82
   const cx = (i) => padL + band * i + band / 2
   const y = (v) => padT + plotH - (v / max) * plotH
   const ticks = 4
   const grid = Array.from({ length: ticks + 1 }, (_, i) => (max / ticks) * i)
 
+  const onMove = (i, e) => {
+    const r = wrapRef.current?.getBoundingClientRect()
+    setHover({ i, x: r ? e.clientX - r.left : 0, y: r ? e.clientY - r.top : 0 })
+  }
+  const metaOf = (i) => { const m = meta ? meta[i] : null; return Array.isArray(m) ? m : (m ? [m] : []) }
+
   return (
-    <div style={{ width: '100%', overflowX: 'auto' }}>
+    <div ref={wrapRef} style={{ width: '100%', overflowX: 'auto', position: 'relative' }} onMouseLeave={() => setHover(null)}>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: 'block', minWidth: W > 520 ? W : undefined }}>
         {grid.map((g, i) => (
           <g key={i}>
@@ -48,14 +54,16 @@ export default function BarsChart({ labels = [], values = [], formatY = (v) => v
         ))}
         {values.map((v, i) => {
           const isProj = projectedBar && i === projectedBar.index && projTotal > v
+          const active = hover && hover.i === i
           return (
             <g key={i}>
-              {/* projected remainder (drawn first, behind the actual cap) */}
               {isProj && (
                 <rect x={cx(i) - barW / 2} y={y(projTotal)} width={barW} height={Math.max(0, y(v) - y(projTotal))} rx="5" fill={projectedBar.color || '#b4440a'} />
               )}
-              {/* actual value */}
-              <rect x={cx(i) - barW / 2} y={y(v)} width={barW} height={Math.max(0, padT + plotH - y(v))} rx="5" fill={barColor} />
+              <rect x={cx(i) - barW / 2} y={y(v)} width={barW} height={Math.max(0, padT + plotH - y(v))} rx="5" fill={barColor} opacity={hover && !active ? 0.55 : 1} />
+              {/* full-height hit target for easy hovering */}
+              <rect x={cx(i) - band / 2} y={padT} width={band} height={plotH} fill="transparent"
+                onMouseMove={(e) => onMove(i, e)} onMouseEnter={(e) => onMove(i, e)} style={{ cursor: 'pointer' }} />
               <text x={cx(i)} y={H - 8} textAnchor="middle" fontSize="10" fill="var(--muted)">{labels[i]}</text>
             </g>
           )
@@ -65,6 +73,18 @@ export default function BarsChart({ labels = [], values = [], formatY = (v) => v
             points={projection.map((p, i) => `${cx(i)},${y(p)}`).join(' ')} />
         )}
       </svg>
+
+      {hover && (
+        <div style={{ position: 'absolute', left: Math.max(4, Math.min(hover.x + 12, (wrapRef.current?.clientWidth || 400) - 210)), top: Math.max(4, hover.y - 10), zIndex: 20, pointerEvents: 'none', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.18)', padding: '8px 11px', width: 200 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontWeight: 800, marginBottom: metaOf(hover.i).length ? 5 : 0 }}>
+            <span>{labels[hover.i]}</span><span>{formatY(values[hover.i])}</span>
+          </div>
+          {metaOf(hover.i).map((line, k) => (
+            <div key={k} style={{ fontSize: 12, color: 'var(--muted)', padding: '1px 0' }}>{line}</div>
+          ))}
+        </div>
+      )}
+
       {(projection || projectedBar) && (
         <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--muted)', marginTop: 4, paddingLeft: padL, flexWrap: 'wrap' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 8, borderRadius: 2, background: barColor, display: 'inline-block' }} />Actual</span>
