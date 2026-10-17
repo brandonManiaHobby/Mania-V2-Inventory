@@ -191,7 +191,10 @@ export default function RecordStream({ scoped }) {
         {/* Co-pilot — a second streamer sitting in */}
         <div className="field">
           {!copilotOn ? (
-            <button onClick={() => setCopilotOn(true)} style={{ ...field, cursor: 'pointer', textAlign: 'left', color: 'var(--orange)', fontWeight: 600 }}>+ Co-pilot (a second streamer sitting in)</button>
+            <button onClick={() => setCopilotOn(true)}
+              style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', font: 'inherit' }}>
+              + Co-pilot
+            </button>
           ) : (
             <>
               <label>Co-pilot</label>

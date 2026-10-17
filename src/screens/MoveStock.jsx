@@ -29,9 +29,23 @@ export default function MoveStock({ scoped }) {
 
   const items = scoped.stockItems.filter((s) => !s.archived)
   // Searchable options with live levels in the note (V1 Restock style).
-  const productOptions = useMemo(() => items
-    .map((s) => ({ id: s.id, label: s.product, note: `${s.type || 'Uncategorised'} · ${int(availableQty(scoped, { stockItemId: s.id, holderId: 'warehouse' }))} in warehouse` }))
-    .sort((a, b) => a.label.localeCompare(b.label)), [items, scoped])
+  // Restock: ONLY products with stock in the warehouse (hide out-of-stock —
+  // you can't issue what isn't there). Return: only what this person holds.
+  const productOptions = useMemo(() => {
+    if (op === 'return') {
+      if (!who) return []
+      const byId = {}
+      for (const h of scoped.holdings) { if (h.holderId === who && h.qty > 0) byId[h.stockItemId] = (byId[h.stockItemId] || 0) + h.qty }
+      return items.filter((s) => byId[s.id] > 0)
+        .map((s) => ({ id: s.id, label: s.product, note: `${int(byId[s.id])} on their shelf` }))
+        .sort((a, b) => a.label.localeCompare(b.label))
+    }
+    return items
+      .map((s) => ({ s, wh: availableQty(scoped, { stockItemId: s.id, holderId: 'warehouse' }) }))
+      .filter((x) => x.wh > 0)
+      .map(({ s, wh }) => ({ id: s.id, label: s.product, note: `${s.type || 'Uncategorised'} · ${int(wh)} in warehouse` }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [items, scoped, op, who])
   // Anyone who can hold a shelf can receive/return stock — streamers, leads,
   // and admins/managers who run breaks themselves (e.g. Brandon).
   const streamers = scoped.profiles

@@ -30,7 +30,8 @@ export default function BarsChart({ labels = [], values = [], formatY = (v) => v
   const W = Math.max(320, n * 60), H = height
   const plotW = W - padL - padR, plotH = H - padT - padB
   const band = plotW / n
-  const barW = Math.min(52, band * 0.66)
+  // Thick bars that fill the band — leaves only a slim gutter either side.
+  const barW = band * 0.82
   const cx = (i) => padL + band * i + band / 2
   const y = (v) => padT + plotH - (v / max) * plotH
   const ticks = 4

@@ -655,7 +655,18 @@ td .btn.sm { padding: 5px 9px; font-size: 12px; }
    ============================================================ */
 .search-select { position: relative; width: 100%; }
 
-.search-select > input { width: 100%; }
+/* Larger, cleaner search field — rounded, roomy, matches the record-a-stream inputs. */
+.search-select > input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+.search-select > input:focus { outline: 2px solid var(--orange); border-color: var(--orange); }
 .search-select > input.has-value { color: var(--text); font-weight: 600; }
 
 .ss-clear {

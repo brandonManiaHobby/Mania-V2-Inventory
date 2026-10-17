@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { computeStream, sumMoney, monthlyProjection } from '../money'
 import { gbp0, gbp, pct, int, monthKey, canonPlatform, parseLocalDate, toDateKey, daysBetween, displayDate } from '../data'
 import MoneyToggle, { VIEW_FIELD } from '../components/MoneyToggle'
@@ -42,7 +42,9 @@ export default function Dashboard({ scoped }) {
   const [view, setView] = useState('gross')
   const [showFilters, setShowFilters] = useState(false)
   const [f, setF] = useState({ dept: '', platform: '', type: '', channel: '', streamer: '' })
-  const [tip, setTip] = useState(null)   // { row, x, y } — follows the cursor
+  const [tip, setTip] = useState(null)   // { row, idx, x } — anchored to the hovered row
+  const chartRef = useRef(null)
+  const ROW_H = 46                       // row padding (12) + bar height (34)
   const field = VIEW_FIELD[view]
   const { from, to } = rangeDates(range, cFrom, cTo)
   const activeFilters = Object.values(f).filter(Boolean).length
@@ -171,7 +173,7 @@ export default function Dashboard({ scoped }) {
 
         {stacked.rows.length === 0 ? <p style={{ color: '#888' }}>No data in range.</p> : (
           <>
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative' }} ref={chartRef} onMouseLeave={() => setTip(null)}>
               {/* gridlines overlay aligned to the track column (60px label + 10 gap … 84px total + 10 gap) */}
               <div style={{ position: 'absolute', left: 70, right: 94, top: 0, bottom: 22, pointerEvents: 'none' }}>
                 {stacked.ticks.map((v, i) => (
@@ -179,13 +181,12 @@ export default function Dashboard({ scoped }) {
                 ))}
               </div>
 
-              {stacked.rows.map((r) => (
+              {stacked.rows.map((r, idx) => (
                 <div key={r.key}
-                  onMouseMove={(e) => setTip({ row: r, x: e.clientX, y: e.clientY })}
-                  onMouseLeave={() => setTip((t) => (t && t.row.key === r.key ? null : t))}
+                  onMouseMove={(e) => { const rect = chartRef.current?.getBoundingClientRect(); setTip({ row: r, idx, x: rect ? e.clientX - rect.left : 90 }) }}
                   style={{ display: 'grid', gridTemplateColumns: '60px 1fr 84px', columnGap: 10, alignItems: 'center', padding: '6px 0', cursor: 'crosshair' }}>
                   <div style={{ fontSize: 12, color: '#777', textAlign: 'right' }}>{r.label}</div>
-                  <div style={{ display: 'flex', height: 34, background: '#f7f6f3', borderRadius: 7, overflow: 'hidden', outline: tip && tip.row.key === r.key ? '2px solid rgba(255,106,0,0.35)' : 'none' }}>
+                  <div style={{ display: 'flex', height: 34, background: '#f7f6f3', borderRadius: 7, overflow: 'hidden', outline: tip && tip.row.key === r.key ? '2px solid rgba(255,106,0,0.45)' : 'none' }}>
                     {stacked.series.filter((se) => r.parts[se.name]).map((se) => (
                       <div key={se.name} style={{ width: `${(r.parts[se.name] / stacked.axisMax) * 100}%`, background: se.colour }} />
                     ))}
@@ -193,6 +194,31 @@ export default function Dashboard({ scoped }) {
                   <div style={{ textAlign: 'right', fontWeight: 600, fontSize: 13 }}>{fmtMeasure(r.total)}</div>
                 </div>
               ))}
+
+              {/* Tooltip anchored to the hovered row — sits right beside the bar,
+                  not off at the cursor (fixed positioning breaks under the page
+                  transition's transform). */}
+              {tip && (() => {
+                const n = stacked.rows.length
+                const below = tip.idx <= 1            // top rows → show below, else above
+                const top = below ? tip.idx * ROW_H + ROW_H + 4 : tip.idx * ROW_H - 4
+                const left = Math.max(4, Math.min(tip.x + 8, (chartRef.current?.clientWidth || 600) - 196))
+                return (
+                  <div style={{ position: 'absolute', left, top, transform: below ? 'none' : 'translateY(-100%)', zIndex: 20, pointerEvents: 'none', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.18)', padding: '8px 11px', width: 188 }}>
+                    <div style={{ fontWeight: 800, marginBottom: 5 }}>{tip.row.label}</div>
+                    {stacked.series.filter((se) => tip.row.parts[se.name]).map((se) => (
+                      <div key={se.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '2px 0' }}>
+                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: se.colour, flex: '0 0 auto' }} />
+                        <span style={{ flex: 1 }}>{se.name}</span>
+                        <span style={{ fontWeight: 600 }}>{fmtMeasure(tip.row.parts[se.name])}</span>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13, paddingTop: 6, marginTop: 4, borderTop: '1px solid var(--line)', fontWeight: 800 }}>
+                      <span>Total</span><span>{fmtMeasure(tip.row.total)}</span>
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* axis labels */}
               <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 84px', columnGap: 10, marginTop: 2 }}>
@@ -242,22 +268,6 @@ export default function Dashboard({ scoped }) {
         />
       </div>
 
-      {/* Cursor-following tooltip for the contribution chart */}
-      {tip && (
-        <div style={{ position: 'fixed', left: Math.min(tip.x + 12, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 200), top: Math.min(tip.y + 12, (typeof window !== 'undefined' ? window.innerHeight : 800) - 130), zIndex: 80, pointerEvents: 'none', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', padding: '9px 11px', minWidth: 180 }}>
-          <div style={{ fontWeight: 800, marginBottom: 6 }}>{tip.row.label}</div>
-          {stacked.series.filter((se) => tip.row.parts[se.name]).map((se) => (
-            <div key={se.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '2px 0' }}>
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: se.colour, flex: '0 0 auto' }} />
-              <span style={{ flex: 1 }}>{se.name}</span>
-              <span style={{ fontWeight: 600 }}>{fmtMeasure(tip.row.parts[se.name])}</span>
-            </div>
-          ))}
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13, paddingTop: 6, marginTop: 4, borderTop: '1px solid var(--line)', fontWeight: 800 }}>
-            <span>Total</span><span>{fmtMeasure(tip.row.total)}</span>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
