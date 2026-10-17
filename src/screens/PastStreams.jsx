@@ -141,13 +141,22 @@ function ReceiptModal({ row, scoped, vatOf, editing, onEdit, onDelete, busy, onC
             </div>
 
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', padding: '14px', borderRadius: 12, background: 'var(--bg)', marginBottom: 14 }}>
-              <div style={cell}><div style={lbl}>Revenue</div><div style={val}>{gbp(rev)}</div><div className="note">{netApplied ? 'net of fees' : 'gross'}</div></div>
-              {netApplied && <div style={cell}><div style={lbl}>VAT owed</div><div style={val}>{gbp(m.vatOwed)}</div></div>}
+              <div style={cell}><div style={lbl}>Gross</div><div style={val}>{gbp(m.gross)}</div></div>
+              {netApplied ? (
+                <>
+                  <div style={cell}><div style={lbl}>Fees</div><div style={{ ...val, color: '#c0392b' }}>{gbp(m.fees)}</div></div>
+                  <div style={cell}><div style={lbl}>Net</div><div style={val}>{gbp(m.net)}</div></div>
+                </>
+              ) : (
+                <div style={cell}><div style={lbl}>Net</div><div style={val}>{gbp(m.gross)}</div><div className="note">no fees entered</div></div>
+              )}
+              <div style={cell}><div style={lbl}>VAT owed</div><div style={{ ...val, color: '#b8700a' }}>{gbp(m.vatOwed)}</div><div className="note">{m.vatOwed > 0 ? 'standard-rated' : 'VAT-free'}</div></div>
               <div style={cell}><div style={lbl}>Stock cost</div><div style={{ ...val, color: '#c0392b' }}>{gbp(m.costPaid)}</div></div>
               <div style={cell}><div style={lbl}>Profit</div><div style={{ ...val, color: m.trueProfit >= 0 ? 'var(--good)' : 'var(--red)' }}>{gbp(m.trueProfit)}</div><div className="note">{pct(m.netMarginPct)} margin</div></div>
               <div style={cell}><div style={lbl}>Revenue / hour</div><div style={val}>{revPerHour != null ? gbp(revPerHour) : '—'}</div></div>
               {s.shipping > 0 && <div style={cell}><div style={lbl}>Shipping</div><div style={val}>{gbp(s.shipping)}</div></div>}
             </div>
+            {!netApplied && <div className="note" style={{ marginTop: -6, marginBottom: 12 }}>No net recorded — VAT is calculated on gross (platform fees not deducted). Add net to this stream to capture fees.</div>}
 
             <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>What ran</div>
             <div style={{ overflowX: 'auto' }}>
