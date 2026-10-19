@@ -76,8 +76,8 @@ export default function InspectProductModal({ product, scoped, onClose, onEdit }
     return { waves, streamRows, distro, totals: { grossAll, netExVatAll, vatAll, costPaidAll, costExVatAll, profitAll, units: sSum.units + dSum.units, recovered, recoveryPct, investedTotal, costExVatTotal }, sSum, dSum, totalHours, activity }
   }, [scoped, product.id, treatment])
 
-  const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 16px', zIndex: 50, overflowY: 'auto' }
-  const card = { background: '#fff', borderRadius: 14, maxWidth: 820, width: '100%', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }
+  const overlay = { position: 'fixed', inset: 0, background: 'rgba(26,20,16,0.5)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 16px', zIndex: 50, overflowY: 'auto', animation: 'modal-fade 0.14s ease-out' }
+  const card = { background: '#fff', borderRadius: 16, maxWidth: 820, width: '100%', boxShadow: '0 24px 60px rgba(0,0,0,0.28)', animation: 'modal-rise 0.16s ease-out' }
   const th = { padding: '0 8px 6px', fontSize: 11, color: '#999', fontWeight: 700, textAlign: 'right' }
   const td = { padding: '6px 8px', fontSize: 13, textAlign: 'right', borderTop: '1px solid #f3f3f3' }
 

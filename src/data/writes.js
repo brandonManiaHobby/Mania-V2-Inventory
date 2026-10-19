@@ -14,7 +14,6 @@ export async function saveStream(input) {
   if (!input.streamerId) throw new Error('Streamer is required')
   if (!input.streamDate) throw new Error('Stream date is required')
   if (!input.title || !input.title.trim()) throw new Error('Title is required')
-  if (!input.streamUrl || !input.streamUrl.trim()) throw new Error('Stream URL is required')
   const gross = Number(input.gross) || 0
   if (!(gross > 0)) throw new Error('Gross is required')
   const rawLines = input.lines || []
@@ -73,31 +72,48 @@ export async function saveStream(input) {
   })
   if (e1) throw e1
 
-  // ---- attach V2 money fields (net/shipping/fees). record_stream returns
-  // void, so set_stream_money finds the just-recorded stream by streamer+date
-  // (same pattern as set_stream_url) rather than relying on a returned id. ----
-  if (input.net != null || input.shipping != null) {
+  // ---- resolve THIS stream's id, so the money/URL updates hit the exact stream
+  // just recorded — NOT another the same streamer ran on the same day. (Matching
+  // by streamer+date corrupted same-day streams: the URL/net landed on the wrong
+  // one.) Use the id record_stream returns; if it returns void, read the newest
+  // stream for this streamer+date (the one we just inserted). ----
+  let newId = streamId || null
+  if (!newId) {
+    // Fallback (record_stream normally returns the id): find the row we just
+    // inserted by streamer+date+title+gross — far tighter than streamer+date, so
+    // it won't grab a different same-day stream. (The scoped view has no
+    // created_at column, so we can't order by insertion time.)
+    const { data: rows } = await supabase
+      .from('v_streams_scoped')
+      .select('id, title, total_sales')
+      .eq('streamer_id', input.streamerId)
+      .eq('stream_date', input.streamDate)
+      .eq('title', input.title)
+    const g = Number(money2(gross))
+    const match = (rows || []).filter((r) => Number(r.total_sales) === g)
+    newId = (match[0] || (rows || [])[0] || {}).id || null
+  }
+
+  // ---- attach V2 money fields (net/shipping/fees) to THIS stream by id ----
+  if (newId && (input.net != null || input.shipping != null)) {
     const { error: e2 } = await supabase.rpc('set_stream_money', {
       p_net: input.net != null ? money2(input.net) : null,
       p_shipping: input.shipping != null ? money2(input.shipping) : null,
-      p_streamer_id: input.streamerId,
-      p_stream_date: input.streamDate,
+      p_stream_id: newId,
     })
     if (e2) throw e2
   }
 
-  // ---- attach the stream URL (share link). record_stream returns void, so
-  // set_stream_url finds the just-recorded stream by streamer+date. ----
-  if (input.streamUrl && input.streamUrl.trim()) {
+  // ---- attach the stream URL (share link) to THIS stream by id ----
+  if (newId && input.streamUrl && input.streamUrl.trim()) {
     const { error: e3 } = await supabase.rpc('set_stream_url', {
       p_url: input.streamUrl.trim(),
-      p_streamer_id: input.streamerId,
-      p_stream_date: input.streamDate,
+      p_stream_id: newId,
     })
     if (e3) throw e3
   }
 
-  return streamId
+  return newId
 }
 
 // ============================================================

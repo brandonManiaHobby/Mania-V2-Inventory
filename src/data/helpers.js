@@ -4,7 +4,7 @@
 // month formatting). Logic helpers here prevent drift; cosmetic ones keep
 // screens consistent and lean.
 // ============================================================
-import { parseLocalDate } from './dates'
+import { parseLocalDate } from './dates.js'
 
 // VAT treatment of a product, from the shared source. ONE definition.
 export function vatTreatmentOf(source, stockItemId) {
@@ -16,7 +16,10 @@ export function vatTreatmentOf(source, stockItemId) {
 export function hoursOf(s) {
   if (!s.streamStart || !s.streamEnd) return 0
   const p = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) + (m || 0) / 60 }
-  const d = p(s.streamEnd) - p(s.streamStart)
+  let d = p(s.streamEnd) - p(s.streamStart)
+  // Overnight streams cross midnight (e.g. 20:00 -> 00:04): end reads lower than
+  // start, so add a day. Without this every past-midnight stream logged 0 hours.
+  if (d < 0) d += 24
   return d > 0 ? d : 0
 }
 

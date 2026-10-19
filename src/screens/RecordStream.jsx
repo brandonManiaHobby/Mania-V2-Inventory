@@ -93,7 +93,6 @@ export default function RecordStream({ scoped }) {
   const save = async () => {
     setErr(null); setMsg(null)
     if (!title.trim()) return setErr('Title is required')
-    if (!streamUrl.trim()) return setErr('Stream URL is required')
     if (!(Number(gross) > 0)) return setErr('Gross is required')
     setSaving(true)
     try {
@@ -131,12 +130,21 @@ export default function RecordStream({ scoped }) {
     return item?.vatTreatment === 'second_hand' ? 'second_hand' : 'standard'
   }
 
-  const engineLines = useMemo(() => lines.filter((l) => l.stockItemId && l.qty).map((l) => {
-    const waves = scoped.waves.filter((w) => w.stockItemId === l.stockItemId)
-    const wave = waves.sort((a, b) => b.waveNo - a.waveNo)[0]
-    const qty = Number(l.qty) || 0
-    return { stockItemId: l.stockItemId, qty, unitCost: wave?.unitCost || 0, lineTotal: Number(l.price) || 0, brokered: false }
-  }), [lines, scoped])
+  const costOfLatestWave = (stockItemId) => {
+    const w = scoped.waves.filter((x) => x.stockItemId === stockItemId).sort((a, b) => b.waveNo - a.waveNo)[0]
+    return w?.unitCost || 0
+  }
+  const engineLines = useMemo(() => {
+    const sold = lines.filter((l) => l.stockItemId && l.qty).map((l) => ({
+      stockItemId: l.stockItemId, qty: Number(l.qty) || 0, unitCost: costOfLatestWave(l.stockItemId), lineTotal: Number(l.price) || 0, brokered: false,
+    }))
+    // Giveaways are a real write-off: £0 revenue, but their stock cost still hits
+    // profit (matches how the saved stream + analytics count it).
+    const gifts = giveaways.filter((g) => g.stockItemId && Number(g.qty) > 0).map((g) => ({
+      stockItemId: g.stockItemId, qty: Number(g.qty) || 0, unitCost: costOfLatestWave(g.stockItemId), lineTotal: 0, brokered: false,
+    }))
+    return [...sold, ...gifts]
+  }, [lines, giveaways, scoped])
 
   const money = useMemo(() => computeStream({
     gross: Number(gross) || 0,
@@ -279,7 +287,7 @@ export default function RecordStream({ scoped }) {
 
         {/* URL */}
         <div className="field">
-          <label>Stream URL <span style={{ color: 'var(--red)' }}>*</span> <span className="note">· paste the share link</span></label>
+          <label>Stream URL <span className="note">· optional · paste the share link</span></label>
           <input style={field} type="url" value={streamUrl} onChange={(e) => setStreamUrl(e.target.value)} placeholder="https://…" />
         </div>
 
@@ -419,7 +427,7 @@ export default function RecordStream({ scoped }) {
         </div>
 
         <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button className="btn" onClick={save} disabled={saving || !streamerId || !title.trim() || !streamUrl.trim() || !(Number(gross) > 0)}>
+          <button className="btn" onClick={save} disabled={saving || !streamerId || !title.trim() || !(Number(gross) > 0)}>
             {saving ? 'Saving…' : 'Review & submit'}
           </button>
           {msg && <span style={{ color: 'var(--good)', fontWeight: 600 }}>{msg}</span>}
