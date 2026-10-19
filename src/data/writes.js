@@ -255,7 +255,10 @@ export async function editStream(input) {
   const gross = Number(input.gross) || 0
   if (gross < 0) throw new Error('Gross cannot be negative')
   const lines = (input.lines || []).filter((l) => l.stockItemId && Number(l.qty) > 0)
-  if (lines.length === 0) throw new Error('Add at least one product line')
+  // Giveaways reconcile the same way as record_stream: {stock_item_id, qty}.
+  const giveaways = (input.giveaways || []).filter((g) => g.stockItemId && Number(g.qty) > 0)
+    .map((g) => ({ stock_item_id: g.stockItemId, qty: Number(g.qty) }))
+  if (lines.length === 0 && giveaways.length === 0) throw new Error('Add at least one product line or giveaway')
   if (input.net != null && Number(input.net) > gross) throw new Error('Net cannot exceed gross')
 
   const p_lines = lines.map((l) => ({ stock_item_id: l.stockItemId, qty: Number(l.qty), price: Number(l.price) || 0 }))
@@ -272,7 +275,7 @@ export async function editStream(input) {
     p_total_sales: money2(gross),
     p_lines,
     p_singles_qty: 0, p_singles_avg_cost: 0, p_singles_revenue: 0,
-    p_title: input.title || null, p_mixed_types: null, p_giveaways: [],
+    p_title: input.title || null, p_mixed_types: null, p_giveaways: giveaways,
   })
   if (e1) throw e1
 

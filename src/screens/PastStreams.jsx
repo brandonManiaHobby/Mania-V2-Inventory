@@ -197,7 +197,11 @@ function ReceiptModal({ row, scoped, vatOf, editing, onEdit, onDelete, busy, onC
 }
 
 function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
-  const live = lines.filter((l) => !l.brokered)
+  // Sold lines ONLY — giveaways (line_kind='giveaway') are edited separately, not
+  // as £0 sold lines, so an edit doesn't mislabel or wipe them.
+  const soldLines = lines.filter((l) => !l.brokered && l.lineKind !== 'giveaway')
+  const giftLines = lines.filter((l) => l.lineKind === 'giveaway')
+  const [giveaways, setGiveaways] = useState(giftLines.map((l) => ({ stockItemId: l.stockItemId || '', qty: String(l.qty) })))
   const [streamerId, setStreamerId] = useState(s.streamerId || '')
   const [platform, setPlatform] = useState(s.platform || '')
   const [streamDate, setStreamDate] = useState(s.streamDate || todayKey())
@@ -208,15 +212,24 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
   const [net, setNet] = useState(s.net != null ? String(s.net) : '')
   const [shipping, setShipping] = useState(s.shipping ? String(s.shipping) : '')
   const [promo, setPromo] = useState(s.promo ? String(s.promo) : '')
-  const [elines, setElines] = useState(live.map((l) => ({ stockItemId: l.stockItemId || '', qty: String(l.qty), price: String(l.lineTotal) })))
+  const [elines, setElines] = useState(soldLines.map((l) => ({ stockItemId: l.stockItemId || '', qty: String(l.qty), price: String(l.lineTotal) })))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
 
-  const engineLines = useMemo(() => elines.filter((l) => l.stockItemId && l.qty).map((l) => {
-    const waves = scoped.waves.filter((w) => w.stockItemId === l.stockItemId)
-    const wave = waves.sort((a, b) => b.waveNo - a.waveNo)[0]
-    return { stockItemId: l.stockItemId, qty: Number(l.qty) || 0, unitCost: wave?.unitCost || 0, lineTotal: Number(l.price) || 0, brokered: false }
-  }), [elines, scoped])
+  const costOf = (stockItemId) => {
+    const wave = scoped.waves.filter((w) => w.stockItemId === stockItemId).sort((a, b) => b.waveNo - a.waveNo)[0]
+    return wave?.unitCost || 0
+  }
+  const setGiveaway = (i, k, v) => setGiveaways(giveaways.map((g, idx) => idx === i ? { ...g, [k]: v } : g))
+
+  const engineLines = useMemo(() => {
+    const sold = elines.filter((l) => l.stockItemId && l.qty).map((l) => ({
+      stockItemId: l.stockItemId, qty: Number(l.qty) || 0, unitCost: costOf(l.stockItemId), lineTotal: Number(l.price) || 0, brokered: false }))
+    // Giveaways carry real cost at £0 revenue so the profit preview is honest.
+    const gifts = giveaways.filter((g) => g.stockItemId && Number(g.qty) > 0).map((g) => ({
+      stockItemId: g.stockItemId, qty: Number(g.qty) || 0, unitCost: costOf(g.stockItemId), lineTotal: 0, brokered: false }))
+    return [...sold, ...gifts]
+  }, [elines, giveaways, scoped])
 
   const preview = useMemo(() => computeStream({ gross: Number(gross) || 0, net: showNet && net !== '' ? Number(net) : null, shipping: showNet ? Number(shipping) || 0 : 0, promo: showNet ? Number(promo) || 0 : 0 }, engineLines, vatOf), [gross, showNet, net, shipping, promo, engineLines])
   const netApplied = showNet && net !== ''
@@ -230,7 +243,8 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
       const { editStream } = await import('../data')
       await editStream({ streamId: s.id, streamerId, platform, streamDate, title, streamUrl,
         gross: Number(gross) || 0, net: netApplied ? Number(net) : null, shipping: showNet && shipping !== '' ? Number(shipping) : null,
-        promo: showNet && promo !== '' ? Number(promo) : null, lines: elines })
+        promo: showNet && promo !== '' ? Number(promo) : null, lines: elines,
+        giveaways: giveaways.filter((g) => g.stockItemId && Number(g.qty) > 0) })
       await onSaved()
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
@@ -259,6 +273,20 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
         </div>
       ))}
       <button onClick={() => setElines([...elines, { stockItemId: '', qty: '', price: '' }])} style={{ ...field, cursor: 'pointer', background: '#fff' }}>+ Add product</button>
+
+      {/* giveaways — stock given away on stream (£0 revenue, real cost) */}
+      <div style={{ marginTop: 14, fontSize: 13, fontWeight: 700, color: '#b8700a' }}>Giveaways <span style={{ fontWeight: 400, color: '#999' }}>· leave the shelf at £0, cost still counts</span></div>
+      {giveaways.map((g, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+          <select style={{ ...field, flex: 2 }} value={g.stockItemId} onChange={(e) => setGiveaway(i, 'stockItemId', e.target.value)}>
+            <option value="">Giveaway product…</option>{scoped.stockItems.filter((x) => !x.archived).map((x) => <option key={x.id} value={x.id}>{x.product}</option>)}
+          </select>
+          <input style={{ ...field, width: 70 }} type="number" placeholder="Qty" value={g.qty} onChange={(e) => setGiveaway(i, 'qty', e.target.value)} />
+          <button onClick={() => setGiveaways(giveaways.filter((_, idx) => idx !== i))} style={{ ...field, width: 40, cursor: 'pointer', background: '#fff', color: '#c82828' }}>×</button>
+        </div>
+      ))}
+      <button onClick={() => setGiveaways([...giveaways, { stockItemId: '', qty: '' }])} style={{ ...field, cursor: 'pointer', background: '#fff', marginTop: 6 }}>+ Add giveaway</button>
+
       <div style={{ display: 'flex', gap: 12, alignItems: 'end', flexWrap: 'wrap', marginTop: 12 }}>
         <label style={{ fontSize: 13 }}>Gross £<br /><input style={{ ...field, width: 120, marginTop: 4 }} type="number" value={gross} onChange={(e) => setGross(e.target.value)} /></label>
         {!showNet ? <button onClick={() => setShowNet(true)} style={{ ...field, cursor: 'pointer', background: '#fff', color: '#1a7f37' }}>+ Add net</button> : (
