@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { gbp, gbp0, int, useSource, updateProduct, addStock, editWaveCost, deleteWave, waveImpactSummary } from '../data'
+import { gbp, gbp0, int, useSource, updateProduct, addStock, setWarehouseQty, editWaveCost, deleteWave, waveImpactSummary } from '../data'
 
 // ============================================================
 // EDIT PRODUCT — product attributes + folded, hardened wave administration.
@@ -19,6 +19,12 @@ export default function EditProductModal({ product, scoped, onClose }) {
   const isAdmin = !!cap.isAdmin
   const canProduct = !!cap.seesAllDepartments // admin or manager
   const waves = useMemo(() => scoped.waves.filter((w) => w.stockItemId === product.id).sort((a, b) => a.waveNo - b.waveNo), [scoped, product.id])
+  // Units sitting in the warehouse (holder = null). This is what the quick
+  // adjust/write-off bar corrects — set_warehouse_qty keeps the waves in sync.
+  const warehouseQty = useMemo(() => (scoped.holdings || [])
+    .filter((h) => h.stockItemId === product.id && h.isWarehouse)
+    .reduce((a, h) => a + (Number(h.qty) || 0), 0), [scoped, product.id])
+  const latestCost = waves.length ? waves[waves.length - 1].unitCost : (product.cost || 0)
 
   // product fields
   const [name, setName] = useState(product.product || '')
@@ -79,8 +85,13 @@ export default function EditProductModal({ product, scoped, onClose }) {
           </div>
         )}
 
+        {/* ---- prominent adjust / remove stock bar ---- */}
+        {cap.canMoveStock && (
+          <AdjustStock product={product} warehouseQty={warehouseQty} latestCost={latestCost} onDone={refresh} setErr={setErr} />
+        )}
+
         {/* ---- waves ---- */}
-        <div style={{ fontWeight: 800, margin: '20px 0 6px', borderTop: '1px solid #eee', paddingTop: 16 }}>Waves</div>
+        <div style={{ fontWeight: 800, margin: '20px 0 6px', borderTop: '1px solid #eee', paddingTop: 16 }}>Waves <span style={{ fontWeight: 400, fontSize: 12, color: '#999' }}>· cost layers (fix £/unit below)</span></div>
         {!isAdmin && <div style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>Wave editing is admin-only. You can view the waves below.</div>}
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead><tr style={{ color: '#999', fontSize: 11, textAlign: 'right' }}>
@@ -98,6 +109,85 @@ export default function EditProductModal({ product, scoped, onClose }) {
         {cap.canMoveStock && <AddWave productName={product.product} type={product.type} onDone={refresh} setErr={setErr} />}
 
         {err && <div style={{ color: '#c82828', marginTop: 12 }}>{err}</div>}
+      </div>
+    </div>
+  )
+}
+
+// ---- prominent adjust / remove / top-up bar (anyone who can move stock) ----
+function AdjustStock({ product, warehouseQty, latestCost, onDone, setErr }) {
+  const [tab, setTab] = useState('remove')   // 'remove' | 'set' | 'topup'
+  const [n, setN] = useState('')             // remove: units off · set: exact qty
+  const [addQty, setAddQty] = useState('')
+  const [addCost, setAddCost] = useState(latestCost != null ? String(latestCost) : '')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState(null)
+
+  const removeN = Math.max(0, Number(n) || 0)
+  const afterRemove = Math.max(0, warehouseQty - removeN)
+  const setTo = Math.max(0, Number(n) || 0)
+
+  const field = { padding: '7px 10px', borderRadius: 8, border: '1px solid #ddd', font: 'inherit', width: 120 }
+  const tabBtn = (k, l) => (
+    <button onClick={() => { setTab(k); setN(''); setMsg(null) }} style={{ padding: '6px 12px', borderRadius: 999, border: '1px solid ' + (tab === k ? '#c0392b' : '#ddd'), background: tab === k ? '#fdecea' : '#fff', color: tab === k ? '#c0392b' : '#777', fontWeight: tab === k ? 700 : 500, cursor: 'pointer', fontSize: 13 }}>{l}</button>
+  )
+
+  const apply = async () => {
+    setErr(null); setMsg(null); setBusy(true)
+    try {
+      if (tab === 'topup') {
+        if (!(Number(addQty) > 0)) throw new Error('Enter how many units to add')
+        await addStock({ product: product.product, type: product.type, cost: Number(addCost) || 0, qty: Number(addQty) })
+      } else {
+        const target = tab === 'remove' ? afterRemove : setTo
+        if (tab === 'remove' && removeN <= 0) throw new Error('Enter how many units to remove')
+        await setWarehouseQty({ product: product.product, type: product.type, cost: latestCost, qty: target })
+      }
+      setN(''); setAddQty(''); setMsg('Done ✓'); await onDone()
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+
+  return (
+    <div style={{ marginTop: 18, border: '1px solid #f0d9d4', background: '#fdf8f7', borderRadius: 12, padding: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+        <div style={{ fontWeight: 800, fontSize: 15 }}>Adjust / remove stock</div>
+        <div style={{ fontSize: 13, color: '#555' }}>In warehouse: <strong>{int(warehouseQty)}</strong> units</div>
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        {tabBtn('remove', 'Remove / write off')}
+        {tabBtn('set', 'Correct to exact qty')}
+        {tabBtn('topup', 'Top up (add stock)')}
+      </div>
+
+      {tab === 'remove' && (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end' }}>
+          <label style={{ fontSize: 12 }}>Units to remove<br /><input style={{ ...field, marginTop: 3 }} type="number" min="0" value={n} onChange={(e) => setN(e.target.value)} /></label>
+          <div style={{ display: 'flex', gap: 5 }}>
+            {[1, 5, 10].map((q) => <button key={q} onClick={() => setN(String((Number(n) || 0) + q))} style={{ padding: '7px 11px', borderRadius: 8, border: '1px solid #ddd', background: '#fff', cursor: 'pointer', fontSize: 13 }}>+{q}</button>)}
+          </div>
+          <div style={{ fontSize: 13, color: '#555', alignSelf: 'center' }}>{int(warehouseQty)} → <strong>{int(afterRemove)}</strong></div>
+        </div>
+      )}
+      {tab === 'set' && (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end' }}>
+          <label style={{ fontSize: 12 }}>Exact warehouse qty<br /><input style={{ ...field, marginTop: 3 }} type="number" min="0" value={n} onChange={(e) => setN(e.target.value)} placeholder={String(int(warehouseQty))} /></label>
+          <div style={{ fontSize: 13, color: '#555', alignSelf: 'center' }}>{int(warehouseQty)} → <strong>{int(setTo)}</strong></div>
+        </div>
+      )}
+      {tab === 'topup' && (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end' }}>
+          <label style={{ fontSize: 12 }}>Units to add<br /><input style={{ ...field, marginTop: 3 }} type="number" min="0" value={addQty} onChange={(e) => setAddQty(e.target.value)} /></label>
+          <label style={{ fontSize: 12 }}>£/unit<br /><input style={{ ...field, marginTop: 3, width: 100 }} type="number" step="0.01" value={addCost} onChange={(e) => setAddCost(e.target.value)} /></label>
+          <div style={{ fontSize: 11, color: '#999', alignSelf: 'center', maxWidth: 200 }}>Same £/unit tops up the matching wave; a new £/unit starts a new wave.</div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
+        <button onClick={apply} disabled={busy} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: tab === 'topup' ? '#1a7f37' : '#c0392b', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+          {busy ? 'Working…' : tab === 'topup' ? 'Add stock' : tab === 'remove' ? 'Remove units' : 'Set quantity'}
+        </button>
+        {msg && <span style={{ color: '#1a7f37', fontWeight: 600 }}>{msg}</span>}
+        <span style={{ fontSize: 11, color: '#999' }}>Keeps cost in sync — removing units takes their cost off too.</span>
       </div>
     </div>
   )

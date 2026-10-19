@@ -336,6 +336,22 @@ export async function addStock({ product, type, cost, qty }) {
   if (error) throw error
 }
 
+// CORRECT / WRITE-OFF warehouse quantity to an EXACT number. Reuses V1's
+// set_warehouse_qty, which keeps the FIFO waves in sync (it consumes layers on a
+// decrease) and logs an adjustment. Use it to tally off stock (set a lower qty),
+// fix a miscount, or zero a product out. Gated server-side by can_move_stock().
+export async function setWarehouseQty({ product, type, cost, qty }) {
+  const p = String(product || '').trim()
+  const q = Number(qty)
+  if (!p) throw new Error('Product name is required')
+  if (!(q >= 0)) throw new Error('Quantity cannot be negative')
+  const { error } = await supabase.rpc('set_warehouse_qty', {
+    p_product: p, p_type: type || null,
+    p_cost: cost != null ? money2(cost) : null, p_qty: q,
+  })
+  if (error) throw error
+}
+
 // WAVE EDIT (admin). Always passes an explicit unit cost + qty; the RPC keeps
 // total_cost = qty×unit_cost. mode: 'forward' (default) or 'recompute' (restate
 // past streams). The UI picks the qty/cost basis and computes newUnitCost.

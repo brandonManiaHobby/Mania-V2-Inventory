@@ -40,7 +40,9 @@ export function capabilities(profile) {
   // Business-WIDE (unscoped) vs department-scoped analytics.
   const seesAllDepartments = isAdmin || isManager   // NOT lead — lead is scoped
   const seesInventory = isAdmin || isManager || isLead || isWarehouse
-  const canMoveStock = isAdmin || isManager || isWarehouse
+  // Leads move/issue/remove stock for their own team (scoping limits them to
+  // their department; the DB can_move_stock() must also allow channel_lead).
+  const canMoveStock = isAdmin || isManager || isWarehouse || isLead
   const canRecordStream = isStreamer || isLead || isAdmin || isManager
   // A shelf-holder is anyone who can be issued stock and sell it on stream —
   // streamers and leads, plus admins/managers who run breaks themselves.

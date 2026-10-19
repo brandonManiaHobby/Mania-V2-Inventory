@@ -1543,5 +1543,8 @@ body:has(.modal-backdrop) { overflow: hidden; }
 .screen-fade { animation: screenFade 0.18s ease both; }
 @keyframes screenFade {
   from { opacity: 0; transform: translateY(5px); }
-  to   { opacity: 1; transform: translateY(0); }
+  /* 'none' (not translateY(0)) so the settled screen keeps NO transform — a
+     lingering transform makes this div the containing block for position:fixed,
+     which pinned modals to the page top instead of the viewport. */
+  to   { opacity: 1; transform: none; }
 }
