@@ -115,10 +115,14 @@ export default function Dashboard({ scoped }) {
     const series = Object.entries(seriesTotals).sort((a, b) => b[1] - a[1]).map(([name, total]) => ({ name, total, colour: seriesColour(name) }))
     const rows = Object.values(buckets).sort((a, b) => (b.key > a.key ? 1 : -1)).map((b) => ({ ...b, label: bucketLabel(b.key) }))
     const maxTotal = Math.max(0, ...rows.map((r) => r.total))
-    // fixed 10k axis, grows in 5k steps (money); nice round axis for hours/shows
+    // Money: roof scales to the data with ~3–5k headroom above the biggest bar
+    // (rounded to a tidy 1k), so bars always fill the space instead of sitting
+    // against a fixed 10k ceiling. Hours/shows: nice round axis.
     let axisMax, step
-    if (measure === 'money') { axisMax = maxTotal <= 10000 ? 10000 : Math.ceil(maxTotal / 5000) * 5000; step = 5000 }
-    else { axisMax = niceCeil(maxTotal || 1); step = axisMax / 4 }
+    if (measure === 'money') {
+      axisMax = Math.max(1000, Math.ceil((maxTotal + 4000) / 1000) * 1000)
+      step = axisMax <= 6000 ? 1000 : Math.ceil(axisMax / 5 / 1000) * 1000
+    } else { axisMax = niceCeil(maxTotal || 1); step = axisMax / 4 }
     const ticks = []; for (let v = 0; v <= axisMax + 0.001; v += step) ticks.push(v)
     return { rows, series, axisMax, ticks, unit }
   }, [streams, split, measure, field.value, from, to])
@@ -228,19 +232,23 @@ export default function Dashboard({ scoped }) {
                 ))}
               </div>
 
-              {stacked.rows.map((r, idx) => (
+              {stacked.rows.map((r, idx) => {
+                const setTipAt = (e) => { const rect = chartRef.current?.getBoundingClientRect(); setTip({ row: r, idx, x: rect ? e.clientX - rect.left : 90 }) }
+                return (
                 <div key={r.key}
-                  onMouseMove={(e) => { const rect = chartRef.current?.getBoundingClientRect(); setTip({ row: r, idx, x: rect ? e.clientX - rect.left : 90 }) }}
-                  style={{ display: 'grid', gridTemplateColumns: '60px 1fr 84px', columnGap: 10, alignItems: 'center', padding: '6px 0', cursor: 'crosshair' }}>
+                  style={{ display: 'grid', gridTemplateColumns: '60px 1fr 84px', columnGap: 10, alignItems: 'center', padding: '6px 0' }}>
                   <div style={{ fontSize: 12, color: '#777', textAlign: 'right' }}>{r.label}</div>
+                  {/* only the FILLED segments are the hover/inspect target, not the whole track */}
                   <div style={{ display: 'flex', height: 34, background: '#f7f6f3', borderRadius: 7, overflow: 'hidden', outline: tip && tip.row.key === r.key ? '2px solid rgba(255,106,0,0.45)' : 'none' }}>
                     {stacked.series.filter((se) => r.parts[se.name]).map((se) => (
-                      <div key={se.name} style={{ width: `${(r.parts[se.name] / stacked.axisMax) * 100}%`, background: se.colour }} />
+                      <div key={se.name} onMouseMove={setTipAt} onMouseEnter={setTipAt}
+                        style={{ width: `${(r.parts[se.name] / stacked.axisMax) * 100}%`, background: se.colour, cursor: 'pointer' }} />
                     ))}
                   </div>
                   <div style={{ textAlign: 'right', fontWeight: 600, fontSize: 13 }}>{fmtMeasure(r.total)}</div>
                 </div>
-              ))}
+                )
+              })}
 
               {/* Tooltip anchored to the hovered row — sits right beside the bar,
                   not off at the cursor (fixed positioning breaks under the page
