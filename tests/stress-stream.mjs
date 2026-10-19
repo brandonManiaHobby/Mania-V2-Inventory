@@ -55,5 +55,19 @@ S('net cannot exceed gross is a VALIDATION concern (engine still computes)')
 {const m=computeStream({gross:500,net:600},[{qty:5,unitCost:40,lineTotal:500,brokered:false,stockItemId:'A'}],vatStd)
  C('fees negative when net>gross (flagged upstream)',m.fees,-100)}
 
+S('promo spend: carried, DEDUCTED from profit, leaves gross margin alone')
+{const base=computeStream({gross:1000,net:900},[{qty:10,unitCost:50,lineTotal:1000,brokered:false,stockItemId:'A'}],vatStd)
+ const m=computeStream({gross:1000,net:900,promo:40},[{qty:10,unitCost:50,lineTotal:1000,brokered:false,stockItemId:'A'}],vatStd)
+ C('promo carried',m.promo,40)
+ C('gross margin unchanged by promo',m.grossMargin,base.grossMargin)
+ C('profit = margin − promo',m.trueProfit,base.trueProfit-40)
+ C('no promo -> promo 0',base.promo,0)}
+
+S('promo + shipping together: only promo hits profit')
+{const m=computeStream({gross:1000,net:900,shipping:50,promo:30},[{qty:10,unitCost:50,lineTotal:1000,brokered:false,stockItemId:'A'}],vatStd)
+ C('shipping carried',m.shipping,50)
+ C('promo carried',m.promo,30)
+ C('profit drops by promo only',m.trueProfit,EX(900)-EX(500)-30)}
+
 console.log(`\n==== STREAM: ${pass} passed, ${fail} failed ====`)
 process.exit(fail>0?1:0)

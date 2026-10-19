@@ -32,7 +32,7 @@ export default function PastStreams({ scoped }) {
       .map((s) => {
         const lines = scoped.streamLines.filter((l) => l.streamId === s.id)
         const live = lines.filter((l) => !l.brokered)
-        const m = computeStream({ gross: s.totalSales, net: s.net, shipping: s.shipping },
+        const m = computeStream({ gross: s.totalSales, net: s.net, shipping: s.shipping, promo: s.promo },
           live.map((l) => ({ qty: l.qty, unitCost: l.unitCost, lineTotal: l.lineTotal, brokered: false, stockItemId: l.stockItemId })), vatOf)
         return { s, lines, m, hours: hoursOf(s) }
       })
@@ -155,6 +155,7 @@ function ReceiptModal({ row, scoped, vatOf, editing, onEdit, onDelete, busy, onC
               <div style={cell}><div style={lbl}>Profit</div><div style={{ ...val, color: m.trueProfit >= 0 ? 'var(--good)' : 'var(--red)' }}>{gbp(m.trueProfit)}</div><div className="note">{pct(m.netMarginPct)} margin</div></div>
               <div style={cell}><div style={lbl}>Revenue / hour</div><div style={val}>{revPerHour != null ? gbp(revPerHour) : '—'}</div></div>
               {s.shipping > 0 && <div style={cell}><div style={lbl}>Shipping</div><div style={val}>{gbp(s.shipping)}</div></div>}
+              {s.promo > 0 && <div style={cell}><div style={lbl}>Promo spend</div><div style={{ ...val, color: '#c0392b' }}>{gbp(s.promo)}</div><div className="note">in Total Spend</div></div>}
             </div>
             {!netApplied && <div className="note" style={{ marginTop: -6, marginBottom: 12 }}>No net recorded — VAT is calculated on gross (platform fees not deducted). Add net to this stream to capture fees.</div>}
 
@@ -206,6 +207,7 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
   const [showNet, setShowNet] = useState(s.net != null)
   const [net, setNet] = useState(s.net != null ? String(s.net) : '')
   const [shipping, setShipping] = useState(s.shipping ? String(s.shipping) : '')
+  const [promo, setPromo] = useState(s.promo ? String(s.promo) : '')
   const [elines, setElines] = useState(live.map((l) => ({ stockItemId: l.stockItemId || '', qty: String(l.qty), price: String(l.lineTotal) })))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
@@ -216,7 +218,7 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
     return { stockItemId: l.stockItemId, qty: Number(l.qty) || 0, unitCost: wave?.unitCost || 0, lineTotal: Number(l.price) || 0, brokered: false }
   }), [elines, scoped])
 
-  const preview = useMemo(() => computeStream({ gross: Number(gross) || 0, net: showNet && net !== '' ? Number(net) : null, shipping: showNet ? Number(shipping) || 0 : 0 }, engineLines, vatOf), [gross, showNet, net, shipping, engineLines])
+  const preview = useMemo(() => computeStream({ gross: Number(gross) || 0, net: showNet && net !== '' ? Number(net) : null, shipping: showNet ? Number(shipping) || 0 : 0, promo: showNet ? Number(promo) || 0 : 0 }, engineLines, vatOf), [gross, showNet, net, shipping, promo, engineLines])
   const netApplied = showNet && net !== ''
 
   const field = { padding: '8px 10px', borderRadius: 8, border: '1px solid #ddd', font: 'inherit' }
@@ -227,7 +229,8 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
     try {
       const { editStream } = await import('../data')
       await editStream({ streamId: s.id, streamerId, platform, streamDate, title, streamUrl,
-        gross: Number(gross) || 0, net: netApplied ? Number(net) : null, shipping: showNet && shipping !== '' ? Number(shipping) : null, lines: elines })
+        gross: Number(gross) || 0, net: netApplied ? Number(net) : null, shipping: showNet && shipping !== '' ? Number(shipping) : null,
+        promo: showNet && promo !== '' ? Number(promo) : null, lines: elines })
       await onSaved()
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
@@ -262,6 +265,7 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
           <>
             <label style={{ fontSize: 13 }}>Net £<br /><input style={{ ...field, width: 120, marginTop: 4 }} type="number" value={net} onChange={(e) => setNet(e.target.value)} /></label>
             <label style={{ fontSize: 13 }}>Shipping £<br /><input style={{ ...field, width: 110, marginTop: 4 }} type="number" value={shipping} onChange={(e) => setShipping(e.target.value)} /></label>
+            <label style={{ fontSize: 13 }}>Promo £<br /><input style={{ ...field, width: 110, marginTop: 4 }} type="number" value={promo} onChange={(e) => setPromo(e.target.value)} placeholder="boost" /></label>
           </>
         )}
       </div>

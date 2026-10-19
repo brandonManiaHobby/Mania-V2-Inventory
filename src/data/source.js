@@ -83,6 +83,7 @@ function normStream(r) {
     // net is streamer-entered and is the source of truth (money-engine spec).
     net: r.net == null ? null : num(r.net),
     shipping: num(r.shipping),
+    promo: r.promo == null ? null : num(r.promo),   // platform boost spend (counts in Total Spend)
     fees: num(r.fees),
     profit: num(r.profit),
     createdAt: r.created_at ?? null,

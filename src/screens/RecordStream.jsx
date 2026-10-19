@@ -22,6 +22,7 @@ export default function RecordStream({ scoped }) {
   const [showNet, setShowNet] = useState(false)
   const [net, setNet] = useState('')
   const [shipping, setShipping] = useState('')
+  const [promo, setPromo] = useState('')
   const [lines, setLines] = useState([{ stockItemId: '', qty: '', price: '' }])
   const me = scoped.cap?.userId
   const [streamerId, setStreamerId] = useState(me || '')
@@ -106,6 +107,7 @@ export default function RecordStream({ scoped }) {
         gross: Number(gross) || 0,
         net: showNet && net !== '' ? Number(net) : null,
         shipping: showNet && shipping !== '' ? Number(shipping) : null,
+        promo: showNet && promo !== '' ? Number(promo) : null,
         lines,
         giveaways: giveaways.filter((g) => g.stockItemId && Number(g.qty) > 0).map((g) => ({ stock_item_id: g.stockItemId, qty: Number(g.qty) })),
         brokered: brokered.filter((b) => b.stockItemId && Number(b.qty) > 0).map((b) => ({ stockItemId: b.stockItemId, qty: Number(b.qty), price: Number(b.price) || 0, ownerId: b.ownerId || null })),
@@ -115,7 +117,7 @@ export default function RecordStream({ scoped }) {
       })
       setMsg('Stream saved ✓')
       await refresh()
-      setGross(''); setNet(''); setShipping(''); setShowNet(false); setNetTouched(false)
+      setGross(''); setNet(''); setShipping(''); setPromo(''); setShowNet(false); setNetTouched(false)
       setLines([{ stockItemId: '', qty: '', price: '' }]); setTitle(''); setStreamUrl('')
       setStreamType(''); setMixedTypes([]); setStartTime(''); setDurH(''); setDurM('')
       setCopilotOn(false); setCopilotId(''); setGiveaways([]); setBrokered([])
@@ -150,7 +152,8 @@ export default function RecordStream({ scoped }) {
     gross: Number(gross) || 0,
     net: showNet && net !== '' ? Number(net) : null,
     shipping: showNet ? (Number(shipping) || 0) : 0,
-  }, engineLines, vatOf), [gross, showNet, net, shipping, engineLines])
+    promo: showNet ? (Number(promo) || 0) : 0,
+  }, engineLines, vatOf), [gross, showNet, net, shipping, promo, engineLines])
 
   const addLine = () => setLines([...lines, { stockItemId: '', qty: '', price: '' }])
   const setLine = (i, k, v) => setLines(lines.map((l, idx) => idx === i ? { ...l, [k]: v } : l))
@@ -307,8 +310,8 @@ export default function RecordStream({ scoped }) {
         {showNet && (
           <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 12, background: 'var(--bg)', marginBottom: 6 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontWeight: 700, fontSize: 13 }}>Net &amp; shipping</span>
-              <button onClick={() => { setShowNet(false); setNet(''); setShipping(''); setNetTouched(false) }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', textDecoration: 'underline', font: 'inherit', fontSize: 12 }}>remove</button>
+              <span style={{ fontWeight: 700, fontSize: 13 }}>Net, shipping &amp; promo</span>
+              <button onClick={() => { setShowNet(false); setNet(''); setShipping(''); setPromo(''); setNetTouched(false) }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', textDecoration: 'underline', font: 'inherit', fontSize: 12 }}>remove</button>
             </div>
             <div className="row2">
               <div className="field" style={{ marginBottom: 0 }}>
@@ -319,6 +322,13 @@ export default function RecordStream({ scoped }) {
                 <label>Shipping spend (£)</label>
                 <input style={field} type="number" step="0.01" value={shipping} onChange={(e) => setShipping(e.target.value)} placeholder="not deducted" />
               </div>
+            </div>
+            <div className="row2" style={{ marginTop: 10 }}>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label>Promo / boost spend (£) <span className="note">· e.g. Whatnot boost · deducted from profit</span></label>
+                <input style={field} type="number" step="0.01" value={promo} onChange={(e) => setPromo(e.target.value)} placeholder="counts in Total Spend" />
+              </div>
+              <div />
             </div>
           </div>
         )}
@@ -424,6 +434,7 @@ export default function RecordStream({ scoped }) {
           <StatCard label="VAT owed" value={gbp0(money.vatOwed)} accent="#b8700a" />
           <StatCard label="Profit" value={gbp0(money.trueProfit)} accent="#1a7f37" sub={`${pct(money.netMarginPct)} margin`} />
           {money.shipping > 0 && <StatCard label="Shipping (not deducted)" value={gbp0(money.shipping)} />}
+          {money.promo > 0 && <StatCard label="Promo spend" value={gbp0(money.promo)} accent="#c0392b" sub="deducted from profit" />}
         </div>
 
         <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>

@@ -104,6 +104,15 @@ export async function saveStream(input) {
     if (e2) throw e2
   }
 
+  // ---- attach promo spend (platform boost) to THIS stream by id ----
+  if (newId && input.promo != null) {
+    const { error: ep } = await supabase.rpc('set_stream_promo', {
+      p_promo: money2(input.promo),
+      p_stream_id: newId,
+    })
+    if (ep) throw ep
+  }
+
   // ---- attach the stream URL (share link) to THIS stream by id ----
   if (newId && input.streamUrl && input.streamUrl.trim()) {
     const { error: e3 } = await supabase.rpc('set_stream_url', {
@@ -276,6 +285,15 @@ export async function editStream(input) {
       p_stream_id: input.streamId,
     })
     if (e2) throw e2
+  }
+
+  // Re-attach promo spend on edit (undefined = leave as-is; null/number = set).
+  if (input.promo !== undefined) {
+    const { error: ep } = await supabase.rpc('set_stream_promo', {
+      p_promo: input.promo != null ? money2(input.promo) : null,
+      p_stream_id: input.streamId,
+    })
+    if (ep) throw ep
   }
 
   // Edit has the id directly — set the URL on this exact stream.

@@ -123,7 +123,8 @@ export function sumMoney(ladders = []) {
   const t = {
     gross: 0, fees: 0, net: 0, vatPortion: 0, netExVat: 0,
     costPaid: 0, costInclVat: 0, costExVat: 0, grossMargin: 0,
-    vatOwed: 0, trueProfit: 0, recoveryContribution: 0, recoveryCostBasis: 0,
+    vatOwed: 0, trueProfit: 0, shipping: 0, promo: 0,
+    recoveryContribution: 0, recoveryCostBasis: 0,
   }
   for (const l of ladders) {
     for (const k of Object.keys(t)) t[k] += Number(l[k]) || 0
@@ -151,6 +152,11 @@ export function computeStream(stream, lines = [], vatOf = () => 'standard') {
   const gross = Number(stream.gross ?? stream.totalSales) || 0
   const net = (stream.net === null || stream.net === undefined) ? gross : (Number(stream.net) || 0)
   const shipping = Number(stream.shipping) || 0
+  // Promo spend (platform boosts, e.g. Whatnot visibility). A real cost out:
+  // it is deducted from bottom-line profit and rolls into Total Spend. (Unlike
+  // shipping, which is shown-not-deducted.) Not COGS, so it leaves gross margin
+  // untouched — it reduces trueProfit only.
+  const promo = Number(stream.promo) || 0
 
   const live = lines.filter((l) => !l.brokered)
   const grossOfLines = live.reduce((a, l) => a + (Number(l.lineTotal) || 0), 0) || gross || 1
@@ -175,14 +181,15 @@ export function computeStream(stream, lines = [], vatOf = () => 'standard') {
 
   const netExVat = net - vatPortion
   const fees = gross - net
-  const grossMargin = netExVat - costExVat
-  const trueProfit = netExVat - costExVat
+  const grossMargin = netExVat - costExVat     // goods margin, pre-overhead
+  const trueProfit = netExVat - costExVat - promo  // bottom line: promo deducted
 
   return {
     gross, fees, net, vatPortion, netExVat,
     costPaid: cost, costInclVat: cost, costExVat,
     grossMargin, vatOwed: vatPortion, trueProfit,
     shipping,                          // shown, NOT deducted
+    promo,                             // deducted from trueProfit + in Total Spend
     grossMarginPct: netExVat !== 0 ? grossMargin / netExVat : 0,
     netMarginPct: gross !== 0 ? trueProfit / gross : 0,
     recoveryContribution: netExVat,
