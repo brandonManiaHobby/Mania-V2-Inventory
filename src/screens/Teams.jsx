@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { computeStream, sumMoney } from '../money'
 import { gbp0, gbp, int, useSource, reassignDepartment } from '../data'
+import StreamerInspectModal from '../components/StreamerInspectModal'
 
 // ============================================================
 // TEAMS (Stage 5 — V1 parity)
@@ -14,6 +15,7 @@ const ROLE_LABEL = { breaker: 'Streamer', channel_lead: 'Lead', warehouse: 'Ware
 export default function Teams({ scoped }) {
   const { refresh } = useSource()
   const [openId, setOpenId] = useState(null)
+  const [inspect, setInspect] = useState(null)   // person being inspected in the modal
   const [busy, setBusy] = useState(null)
   const [err, setErr] = useState(null)
   const canManage = scoped.cap?.isAdmin || scoped.cap?.isManager
@@ -81,6 +83,10 @@ export default function Teams({ scoped }) {
 
                   {open && (
                     <div style={{ borderTop: '1px solid #f0f0f0', padding: '12px 14px' }}>
+                      {/* inspect performance */}
+                      <button onClick={() => setInspect(p)} style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--orange, #e8702a)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                        📊 Inspect performance
+                      </button>
                       {/* peek their stock */}
                       <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>On their shelf</div>
                       {p.holdings.length === 0 ? <p style={{ color: '#888', fontSize: 13 }}>Nothing on shelf.</p> : (
@@ -114,6 +120,8 @@ export default function Teams({ scoped }) {
         </div>
       ))}
       {people.length === 0 && <p style={{ color: '#888' }}>No people in scope.</p>}
+
+      {inspect && <StreamerInspectModal person={inspect} scoped={scoped} onClose={() => setInspect(null)} />}
     </div>
   )
 }

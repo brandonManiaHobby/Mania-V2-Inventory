@@ -22,7 +22,7 @@ const LABEL = { gross: 'Gross', net: 'Net', netExVat: 'Net ex-VAT', trueProfit: 
 function hoursOf(s) {
   if (!s.streamStart || !s.streamEnd) return 0
   const p = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) + (m || 0) / 60 }
-  const d = p(s.streamEnd) - p(s.streamStart); return d > 0 ? d : 0
+  let d = p(s.streamEnd) - p(s.streamStart); if (d < 0) d += 24; return d > 0 ? d : 0
 }
 // Fixed brand colours (V1 parity); anything else gets a stable hue.
 const BRAND = { 'mania/101': '#ff6a00', 'mania 101': '#ff6a00', '101': '#ff6a00', 'mania/101 cardbreaks': '#ff6a00', '101 cardbreaks': '#ff6a00', 'mania tcg': '#3a6fd8', 'tcg': '#3a6fd8', 'gc mania': '#c0531f', 'gcmania': '#c0531f', 'gc': '#c0531f' }

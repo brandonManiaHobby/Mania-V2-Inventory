@@ -13,7 +13,7 @@ const PLATFORMS = ['eBay Live', 'Whatnot', 'TikTok Shop', 'Fanatics']
 const hoursOf = (s) => {
   if (!s.streamStart || !s.streamEnd) return 0
   const p = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) + (m || 0) / 60 }
-  const d = p(s.streamEnd) - p(s.streamStart); return d > 0 ? d : 0
+  let d = p(s.streamEnd) - p(s.streamStart); if (d < 0) d += 24; return d > 0 ? d : 0
 }
 
 export default function PastStreams({ scoped }) {

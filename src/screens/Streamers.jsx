@@ -15,7 +15,9 @@ import BarsChart from '../components/BarsChart'
 function hoursOf(s) {
   if (!s.streamStart || !s.streamEnd) return 0
   const p = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) + (m || 0) / 60 }
-  const d = p(s.streamEnd) - p(s.streamStart); return d > 0 ? d : 0
+  let d = p(s.streamEnd) - p(s.streamStart)
+  if (d < 0) d += 24   // overnight streams cross midnight
+  return d > 0 ? d : 0
 }
 const monL = (m) => { const d = parseLocalDate(m + '-01'); return d ? d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }) : m }
 const short = (p) => String(p).replace(/^Pokemon TCG /, '').replace(/^Topps® /, '').replace(/^Topps /, '')

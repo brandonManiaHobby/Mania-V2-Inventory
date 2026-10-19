@@ -13,7 +13,7 @@ import BarsChart from '../components/BarsChart'
 const hoursOf = (s) => {
   if (!s.streamStart || !s.streamEnd) return 0
   const p = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) + (m || 0) / 60 }
-  const d = p(s.streamEnd) - p(s.streamStart); return d > 0 ? d : 0
+  let d = p(s.streamEnd) - p(s.streamStart); if (d < 0) d += 24; return d > 0 ? d : 0
 }
 const addDays = (ymd, n) => { const d = parseLocalDate(ymd); d.setDate(d.getDate() + n); return toDateKey(d) }
 // Fixed calendar month (V1 parity) — first to last day of the picked month.
