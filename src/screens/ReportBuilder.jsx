@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { exVat, vatOfInclusive } from '../money'
 import { gbp, gbp0, int, pct, todayKey, toDateKey, parseLocalDate, displayDate, vatTreatmentOf, shortName, canonPlatform } from '../data'
 
@@ -445,7 +446,7 @@ function FocusPanel({ constraints, records, hoursById, rangeLabel, onClose }) {
   const th = { textAlign: 'right', fontSize: 11, color: 'var(--muted)', fontWeight: 700, padding: '0 8px 5px' }
   const td = { padding: '6px 8px', fontSize: 13, borderTop: '1px solid var(--line)', textAlign: 'right' }
 
-  return (
+  return createPortal((
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: '40px 16px', zIndex: 70, overflowY: 'auto' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card)', borderRadius: 14, maxWidth: 720, width: '100%', margin: 'auto', padding: 20, boxShadow: 'var(--shadow)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 10, marginBottom: 4 }}>
@@ -497,5 +498,5 @@ function FocusPanel({ constraints, records, hoursById, rangeLabel, onClose }) {
         ))}
       </div>
     </div>
-  )
+  ), document.body)
 }

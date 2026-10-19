@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { gbp, gbp0, int, useSource, updateProduct, addStock, setWarehouseQty, editWaveCost, deleteWave, waveImpactSummary } from '../data'
 
 // ============================================================
@@ -46,7 +47,7 @@ export default function EditProductModal({ product, scoped, onClose }) {
 
   const field = { padding: '8px 10px', borderRadius: 8, border: '1px solid #ddd', font: 'inherit' }
 
-  return (
+  return createPortal((
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(26,20,16,0.5)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 16px', zIndex: 50, overflowY: 'auto', animation: 'modal-fade 0.14s ease-out' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, maxWidth: 680, width: '100%', margin: 'auto', padding: 22, boxShadow: '0 24px 60px rgba(0,0,0,0.28)', animation: 'modal-rise 0.16s ease-out' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -111,7 +112,7 @@ export default function EditProductModal({ product, scoped, onClose }) {
         {err && <div style={{ color: '#c82828', marginTop: 12 }}>{err}</div>}
       </div>
     </div>
-  )
+  ), document.body)
 }
 
 // ---- prominent adjust / remove / top-up bar (anyone who can move stock) ----

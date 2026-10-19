@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { computeMoney, exVat, vatOfInclusive } from '../money'
 import { gbp, gbp0, pct, int, displayDate, hoursOf, shortName } from '../data'
 import WaveRows from './WaveRows'
@@ -89,7 +90,7 @@ export default function InspectProductModal({ product, scoped, onClose, onEdit }
     </div>
   )
 
-  return (
+  return createPortal((
     <div onClick={onClose} style={overlay}>
       <div onClick={(e) => e.stopPropagation()} style={card}>
         {/* header */}
@@ -256,5 +257,5 @@ export default function InspectProductModal({ product, scoped, onClose, onEdit }
         </div>
       </div>
     </div>
-  )
+  ), document.body)
 }

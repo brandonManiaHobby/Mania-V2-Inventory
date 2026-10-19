@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { capabilities } from '../scoping'
 import { supabase } from '../supabaseClient'
 import UpdateBanner from './UpdateBanner'
@@ -182,7 +183,7 @@ export default function NavShell({ profile, active, onNavigate, onSignOut, viewA
 function CommandPalette({ items, onJump, onClose }) {
   const [q, setQ] = useState('')
   const list = items.filter((i) => (i.group + ' ' + i.label).toLowerCase().includes(q.toLowerCase()))
-  return (
+  return createPortal((
     <div onClick={onClose} style={overlay}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...sheet, maxWidth: 440, padding: 0, overflow: 'hidden' }}>
         <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Jump to…"
@@ -198,12 +199,12 @@ function CommandPalette({ items, onJump, onClose }) {
         </div>
       </div>
     </div>
-  )
+  ), document.body)
 }
 
 // ---- Help ----
 function HelpModal({ onClose }) {
-  return (
+  return createPortal((
     <div onClick={onClose} style={overlay}>
       <div onClick={(e) => e.stopPropagation()} style={sheet}>
         <ModalHead title="How this works" onClose={onClose} />
@@ -216,7 +217,7 @@ function HelpModal({ onClose }) {
         </div>
       </div>
     </div>
-  )
+  ), document.body)
 }
 
 // ---- Change password ----
@@ -236,7 +237,7 @@ function ChangePassword({ onClose }) {
     if (error) setErr(error.message); else { setMsg('Password changed ✓'); setPw(''); setPw2('') }
   }
   const field = { width: '100%', padding: '9px 11px', borderRadius: 9, border: '1px solid var(--line)', font: 'inherit', background: 'var(--card)', color: 'var(--ink)' }
-  return (
+  return createPortal((
     <div onClick={onClose} style={overlay}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...sheet, maxWidth: 380 }}>
         <ModalHead title="Change password" onClose={onClose} />
@@ -249,7 +250,7 @@ function ChangePassword({ onClose }) {
         </div>
       </div>
     </div>
-  )
+  ), document.body)
 }
 
 // V1 section-header card — eyebrow (group) + title left, description right.

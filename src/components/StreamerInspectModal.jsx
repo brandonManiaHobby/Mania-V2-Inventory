@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { computeStream, sumMoney } from '../money'
 import { gbp, gbp0, int, displayDate, shortName, toDateKey, parseLocalDate } from '../data'
 import StatCard from './StatCard'
@@ -87,7 +88,7 @@ export default function StreamerInspectModal({ person, scoped, onClose }) {
     <button key={k} onClick={() => setPreset(k)} style={{ padding: '6px 13px', borderRadius: 999, border: '1px solid ' + (preset === k ? 'var(--orange, #e8702a)' : '#ddd'), background: preset === k ? 'var(--orange, #e8702a)' : '#fff', color: preset === k ? '#fff' : '#777', fontWeight: preset === k ? 700 : 500, cursor: 'pointer', fontSize: 13 }}>{l}</button>
   )
 
-  return (
+  return createPortal((
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(26,20,16,0.5)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 16px', zIndex: 60, overflowY: 'auto', animation: 'modal-fade 0.14s ease-out' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, maxWidth: 720, width: '100%', margin: 'auto', padding: 22, boxShadow: '0 24px 60px rgba(0,0,0,0.28)', animation: 'modal-rise 0.16s ease-out' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -137,5 +138,5 @@ export default function StreamerInspectModal({ person, scoped, onClose }) {
         )}
       </div>
     </div>
-  )
+  ), document.body)
 }
