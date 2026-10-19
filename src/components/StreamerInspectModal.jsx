@@ -89,7 +89,7 @@ export default function StreamerInspectModal({ person, scoped, onClose }) {
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(26,20,16,0.5)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 16px', zIndex: 60, overflowY: 'auto', animation: 'modal-fade 0.14s ease-out' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, maxWidth: 720, width: '100%', padding: 22, boxShadow: '0 24px 60px rgba(0,0,0,0.28)', animation: 'modal-rise 0.16s ease-out' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, maxWidth: 720, width: '100%', margin: 'auto', padding: 22, boxShadow: '0 24px 60px rgba(0,0,0,0.28)', animation: 'modal-rise 0.16s ease-out' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ width: 11, height: 11, borderRadius: 999, background: person.colour || '#ccc', display: 'inline-block' }} />

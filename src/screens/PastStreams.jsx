@@ -116,7 +116,7 @@ function ReceiptModal({ row, scoped, vatOf, editing, onEdit, onDelete, busy, onC
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(26,20,16,0.5)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', zIndex: 90, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 16px', overflowY: 'auto', animation: 'modal-fade 0.14s ease-out' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: 20, width: '100%', maxWidth: 620, boxShadow: '0 24px 60px rgba(0,0,0,0.28)', animation: 'modal-rise 0.16s ease-out' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: 20, width: '100%', maxWidth: 620, margin: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,0.28)', animation: 'modal-rise 0.16s ease-out' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, borderLeft: '3px solid var(--orange)', paddingLeft: 10, marginBottom: 14 }}>
           <div>
             <h3 style={{ margin: 0, fontSize: 18 }}>{s.title || 'Stream'}</h3>

@@ -447,7 +447,7 @@ function FocusPanel({ constraints, records, hoursById, rangeLabel, onClose }) {
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: '40px 16px', zIndex: 70, overflowY: 'auto' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card)', borderRadius: 14, maxWidth: 720, width: '100%', padding: 20, boxShadow: 'var(--shadow)' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card)', borderRadius: 14, maxWidth: 720, width: '100%', margin: 'auto', padding: 20, boxShadow: 'var(--shadow)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 10, marginBottom: 4 }}>
           <div>
             <h3 className="h2" style={{ margin: 0, fontSize: 19, display: 'flex', alignItems: 'center', gap: 8 }}>
