@@ -24,6 +24,7 @@ export default function Products({ scoped }) {
   const [openId, setOpenId] = useState(null)
   const [editStockId, setEditStockId] = useState(null)
   const [inspectId, setInspectId] = useState(null)
+  const [q, setQ] = useState('')
   const canEdit = !!scoped.cap?.seesAllDepartments
   const field = VIEW_FIELD[view]
   const vatOf = (id) => scoped.stockItems.find((s) => s.id === id)?.vatTreatment === 'second_hand' ? 'second_hand' : 'standard'
@@ -118,12 +119,17 @@ export default function Products({ scoped }) {
         </div>
       )}
 
-      <div style={{ fontSize: 12, color: '#999', marginTop: 20, marginBottom: 6 }}>
-        Ranked by {LABEL[view].toLowerCase()} · tap for P&L, waves, streamers + recovery
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginTop: 20, marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: '#999' }}>
+          Ranked by {LABEL[view].toLowerCase()} · tap for P&L, waves, streamers + recovery
+        </div>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Search a product…"
+          style={{ padding: '8px 12px', borderRadius: 999, border: '1px solid var(--line)', font: 'inherit', fontSize: 13, minWidth: 220, background: 'var(--card)' }} />
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {rows.map((r, rank) => {
+        {(q.trim() ? rows.filter((r) => r.product.toLowerCase().includes(q.trim().toLowerCase())) : rows).map((r) => {
+          const rank = rows.indexOf(r)
           const open = openId === r.id
           return (
             <div key={r.id} style={{ border: '1px solid #eee', borderRadius: 12, background: '#fff', overflow: 'hidden' }}>
@@ -210,6 +216,9 @@ export default function Products({ scoped }) {
           )
         })}
         {rows.length === 0 && <p style={{ color: '#888' }}>No product sales in scope.</p>}
+        {rows.length > 0 && q.trim() && !rows.some((r) => r.product.toLowerCase().includes(q.trim().toLowerCase())) && (
+          <p style={{ color: '#888' }}>No product matches “{q.trim()}”.</p>
+        )}
       </div>
       {editStockId && (
         <EditProductModal

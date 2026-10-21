@@ -115,6 +115,25 @@ function ReceiptModal({ row, scoped, vatOf, editing, onEdit, onDelete, busy, onC
   const lbl = { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.3, color: 'var(--muted)', fontWeight: 700 }
   const val = { fontSize: 15, fontWeight: 700, marginTop: 2 }
 
+  // Estimated per-product split: when the gross exceeds the "sold for" figures
+  // actually entered and some product lines were left blank, spread the leftover
+  // across those blank lines weighted by stock cost (V1 behaviour) so each shows
+  // a sensible revenue/profit instead of £0 and a huge negative.
+  const productLines = lines.filter((l) => !l.brokered && l.lineKind !== 'giveaway')
+  const attributed = productLines.reduce((a, l) => a + (Number(l.lineTotal) || 0), 0)
+  const grossStream = Number(s.totalSales) || 0
+  const unattributed = Math.max(0, grossStream - attributed)
+  const blankLines = productLines.filter((l) => !(Number(l.lineTotal) > 0))
+  const blankCost = blankLines.reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.unitCost) || 0), 0)
+  const blankQty = blankLines.reduce((a, l) => a + (Number(l.qty) || 0), 0)
+  const splitActive = unattributed > 0.01 && blankLines.length > 0
+  const estSoldOf = (l) => {
+    const cost = (Number(l.qty) || 0) * (Number(l.unitCost) || 0)
+    if (blankCost > 0) return unattributed * (cost / blankCost)       // weight by stock cost
+    if (blankQty > 0) return unattributed * ((Number(l.qty) || 0) / blankQty)  // else by qty
+    return unattributed / blankLines.length                          // else even
+  }
+
   return createPortal((
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(26,20,16,0.5)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', zIndex: 90, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 16px', overflowY: 'auto', animation: 'modal-fade 0.14s ease-out' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: 20, width: '100%', maxWidth: 620, margin: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,0.28)', animation: 'modal-rise 0.16s ease-out' }}>
@@ -167,13 +186,16 @@ function ReceiptModal({ row, scoped, vatOf, editing, onEdit, onDelete, busy, onC
                 <tbody>
                   {lines.map((l) => {
                     const cost = (Number(l.qty) || 0) * (Number(l.unitCost) || 0)
-                    const profit = (Number(l.lineTotal) || 0) - cost
+                    const isProduct = !l.brokered && l.lineKind !== 'giveaway'
+                    const estimated = splitActive && isProduct && !(Number(l.lineTotal) > 0)
+                    const sold = estimated ? estSoldOf(l) : (Number(l.lineTotal) || 0)
+                    const profit = sold - cost
                     return (
                       <tr key={l.id} style={{ borderTop: '1px solid var(--line)', textAlign: 'right' }}>
                         <td style={{ textAlign: 'left', padding: '5px 0' }}>{short(l.product)}{l.brokered ? ' (brokered)' : ''}</td>
                         <td>{l.qty}</td>
                         <td style={{ color: 'var(--muted)' }}>{gbp(l.unitCost || 0)}</td>
-                        <td>{gbp(l.lineTotal)}</td>
+                        <td>{gbp(sold)}{estimated && <span style={{ color: 'var(--muted)', fontSize: 10 }}> est.</span>}</td>
                         <td style={{ color: profit >= 0 ? 'var(--good)' : 'var(--red)' }}>{gbp(profit)}</td>
                       </tr>
                     )

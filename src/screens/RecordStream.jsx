@@ -426,6 +426,47 @@ export default function RecordStream({ scoped }) {
           </>
         )}
 
+        {/* Attribution — product "sold for" vs total gross (V1 parity). The gap
+            is auto-split across blank lines (weighted by cost) on save, and the
+            stream is flagged estimated so the lead knows. */}
+        {Number(gross) > 0 && lines.some((l) => l.stockItemId) && (() => {
+          const grossNum = Number(gross) || 0
+          const attributed = lines.reduce((a, l) => a + (Number(l.price) || 0), 0)
+          const notYet = Math.round((grossNum - attributed) * 100) / 100
+          return (
+            <div style={{ border: '1px solid var(--orange)', borderRadius: 12, padding: 14, marginTop: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                <div>
+                  <div style={{ fontWeight: 700 }}>Attributed to products</div>
+                  <div className="note">Total Gross Sales (excl. platform fees)</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 800 }}>{gbp(attributed)}</div>
+                  <div style={{ fontWeight: 700 }}>{gbp(grossNum)}</div>
+                </div>
+              </div>
+              {notYet > 0.009 && (
+                <div style={{ borderTop: '1px solid var(--line)', marginTop: 12, paddingTop: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 700, color: 'var(--orange)' }}>Not yet attributed</span>
+                    <span style={{ fontWeight: 800, color: 'var(--orange)' }}>{gbp(notYet)}</span>
+                  </div>
+                  <div className="note" style={{ marginTop: 4 }}>Not tied to a product yet. Leave “Sold for” blank on a line and this gets shared across those products automatically, weighted by what the stock cost — the stream is flagged so your lead knows the split was estimated. Fill it in if you know the real figures.</div>
+                </div>
+              )}
+              {notYet < -0.009 && (
+                <div style={{ borderTop: '1px solid var(--line)', marginTop: 12, paddingTop: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 700, color: 'var(--red)' }}>Over-attributed</span>
+                    <span style={{ fontWeight: 800, color: 'var(--red)' }}>{gbp(-notYet)}</span>
+                  </div>
+                  <div className="note" style={{ marginTop: 4 }}>The product “Sold for” figures add up to more than the total gross — check the amounts.</div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
         {/* Live money windows */}
         <div style={{ borderTop: '1px solid var(--line)', marginTop: 20, paddingTop: 18, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <StatCard label={netApplied ? 'Revenue (net)' : 'Revenue (gross)'} value={gbp0(revBasis)} accent="#111" sub={netApplied ? 'net of fees' : 'gross'} />
