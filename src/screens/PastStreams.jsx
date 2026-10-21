@@ -230,6 +230,8 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
   const [streamDate, setStreamDate] = useState(s.streamDate || todayKey())
   const [title, setTitle] = useState(s.title || '')
   const [streamUrl, setStreamUrl] = useState(s.streamUrl || '')
+  const [startTime, setStartTime] = useState((s.streamStart || '').slice(0, 5))
+  const [endTime, setEndTime] = useState((s.streamEnd || '').slice(0, 5))
   const [gross, setGross] = useState(String(s.totalSales ?? ''))
   const [showNet, setShowNet] = useState(s.net != null)
   const [net, setNet] = useState(s.net != null ? String(s.net) : '')
@@ -264,7 +266,9 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
     setBusy(true); setErr(null)
     try {
       const { editStream } = await import('../data')
-      await editStream({ streamId: s.id, streamerId, platform, streamDate, title, streamUrl,
+      await editStream({ streamId: s.id, streamerId, platform, channel: s.channel || null, streamDate, title, streamUrl,
+        streamStart: startTime || null, streamEnd: endTime || null,
+        streamType: s.streamType || null, mixedTypes: s.mixedTypes || null,
         gross: Number(gross) || 0, net: netApplied ? Number(net) : null, shipping: showNet && shipping !== '' ? Number(shipping) : null,
         promo: showNet && promo !== '' ? Number(promo) : null, lines: elines,
         giveaways: giveaways.filter((g) => g.stockItemId && Number(g.qty) > 0) })
@@ -285,6 +289,11 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
         <input style={field} type="date" value={streamDate} onChange={(e) => setStreamDate(e.target.value)} />
         <input style={{ ...field, flex: 1, minWidth: 140 }} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
         <input style={{ ...field, flex: 1, minWidth: 200 }} type="url" value={streamUrl} onChange={(e) => setStreamUrl(e.target.value)} placeholder="Stream URL (share link)" />
+      </div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+        <label style={{ fontSize: 13, color: '#555' }}>Start <input style={{ ...field, marginLeft: 4 }} type="time" value={startTime || ''} onChange={(e) => setStartTime(e.target.value)} /></label>
+        <label style={{ fontSize: 13, color: '#555' }}>End <input style={{ ...field, marginLeft: 4 }} type="time" value={endTime || ''} onChange={(e) => setEndTime(e.target.value)} /></label>
+        <span className="note">keeps the hours — overnight end times (past midnight) are fine</span>
       </div>
       {elines.map((l, i) => (
         <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>

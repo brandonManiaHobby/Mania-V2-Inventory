@@ -275,7 +275,7 @@ export async function editStream(input) {
     p_total_sales: money2(gross),
     p_lines,
     p_singles_qty: 0, p_singles_avg_cost: 0, p_singles_revenue: 0,
-    p_title: input.title || null, p_mixed_types: null, p_giveaways: giveaways,
+    p_title: input.title || null, p_mixed_types: input.mixedTypes || null, p_giveaways: giveaways,
   })
   if (e1) throw e1
 
