@@ -188,7 +188,15 @@ export default function RecordStream({ scoped }) {
 
   const netApplied = showNet && net !== ''
   const hours = (Number(durH) || 0) + (Number(durM) || 0) / 60
-  const revBasis = netApplied ? money.net : money.gross
+  // Singles (loose cards) add to the live totals — revenue + their cost. Loose
+  // cards are second-hand, so VAT-free (profit = revenue − cost).
+  const singlesQtyN = showSingles ? (Number(singlesQty) || 0) : 0
+  const singlesCostN = singlesQtyN * (showSingles ? (Number(singlesAvg) || 0) : 0)
+  const singlesRevN = showSingles ? (Number(singlesRev) || 0) : 0
+  const revBasis = (netApplied ? money.net : money.gross) + singlesRevN
+  const totalCost = money.costPaid + singlesCostN
+  const totalProfit = money.trueProfit + (singlesRevN - singlesCostN)
+  const totalMarginPct = revBasis > 0 ? totalProfit / revBasis : 0
   const revPerHour = hours > 0 ? revBasis / hours : null
 
   return (
@@ -471,9 +479,9 @@ export default function RecordStream({ scoped }) {
         <div style={{ borderTop: '1px solid var(--line)', marginTop: 20, paddingTop: 18, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <StatCard label={netApplied ? 'Revenue (net)' : 'Revenue (gross)'} value={gbp0(revBasis)} accent="#111" sub={netApplied ? 'net of fees' : 'gross'} />
           <StatCard label="Revenue / hour" value={revPerHour != null ? gbp0(revPerHour) : '—'} />
-          <StatCard label="Total stock cost" value={gbp0(money.costPaid)} accent="#c0392b" />
+          <StatCard label="Total stock cost" value={gbp0(totalCost)} accent="#c0392b" />
           <StatCard label="VAT owed" value={gbp0(money.vatOwed)} accent="#b8700a" />
-          <StatCard label="Profit" value={gbp0(money.trueProfit)} accent="#1a7f37" sub={`${pct(money.netMarginPct)} margin`} />
+          <StatCard label="Profit" value={gbp0(totalProfit)} accent="#1a7f37" sub={`${pct(totalMarginPct)} margin`} />
           {money.shipping > 0 && <StatCard label="Shipping (not deducted)" value={gbp0(money.shipping)} />}
           {money.promo > 0 && <StatCard label="Promo spend" value={gbp0(money.promo)} accent="#c0392b" sub="deducted from profit" />}
         </div>
