@@ -15,7 +15,7 @@ export async function saveStream(input) {
   if (!input.streamDate) throw new Error('Stream date is required')
   if (!input.title || !input.title.trim()) throw new Error('Title is required')
   const gross = Number(input.gross) || 0
-  if (!(gross > 0)) throw new Error('Gross is required')
+  if (gross < 0) throw new Error('Gross cannot be negative')   // 0 is allowed — a no-sales stream can still be logged
   const rawLines = input.lines || []
   const lines = rawLines.filter((l) => l.stockItemId && Number(l.qty) > 0)
   // Brokered deals: ran through the show but not the streamer's own stock. Carried
@@ -24,14 +24,12 @@ export async function saveStream(input) {
   const rawBrokered = input.brokered || []
   const brokered = rawBrokered.filter((b) => b.stockItemId && Number(b.qty) > 0)
   if (brokered.some((b) => !b.ownerId)) throw new Error('Every brokered deal needs a deal owner selected before you can save')
-  if (lines.length === 0 && brokered.length === 0) {
-    // Specific diagnosis: distinguish "no product picked" from "no qty".
-    const anyProduct = rawLines.some((l) => l.stockItemId)
-    const anyQty = rawLines.some((l) => Number(l.qty) > 0)
-    if (!anyProduct && anyQty) throw new Error('Pick a product for the line (qty is set but no product selected)')
-    if (anyProduct && !anyQty) throw new Error('Enter a quantity for the product')
-    throw new Error('Add at least one product line (product + qty)')
-  }
+  // A HALF-filled product line is a real mistake worth catching; an entirely empty
+  // line set is fine — a 0-sales stream (nothing opened/sold) can still be recorded.
+  const anyProduct = rawLines.some((l) => l.stockItemId)
+  const anyQty = rawLines.some((l) => Number(l.qty) > 0)
+  if (!anyProduct && anyQty) throw new Error('Pick a product for the line (qty is set but no product selected)')
+  if (anyProduct && !anyQty) throw new Error('Enter a quantity for the product')
   if (input.net != null && Number(input.net) > gross) {
     throw new Error('Net cannot exceed gross')
   }
@@ -309,12 +307,23 @@ export async function editStream(input) {
   }
 }
 
-// REASSIGN a person's department (admin/manager). Simple profiles update;
-// RLS enforces who may do it. Refresh after so scoping/rosters update.
+// REASSIGN a person's department (admin/manager). A DB trigger locks the
+// department once set, so a MOVE between departments must go via unassign
+// (department = null) first, then assign — both as the current admin. We only
+// take the unassign step when actually moving a non-null department, so a plain
+// first-time assignment (or a clear) stays a single update.
 export async function reassignDepartment(profileId, department) {
   if (!profileId) throw new Error('No person selected')
-  const { error } = await supabase.from('profiles').update({ department }).eq('id', profileId)
-  if (error) throw error
+  const target = department || null
+  const { data: cur } = await supabase.from('profiles').select('department').eq('id', profileId).maybeSingle()
+  const current = cur?.department ?? null
+  if (current === target) return
+  if (current && target) {
+    const { error: e1 } = await supabase.from('profiles').update({ department: null }).eq('id', profileId)
+    if (e1) throw e1
+  }
+  const { error: e2 } = await supabase.from('profiles').update({ department: target }).eq('id', profileId)
+  if (e2) throw e2
 }
 
 // ============================================================

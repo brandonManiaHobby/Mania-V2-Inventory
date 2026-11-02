@@ -94,7 +94,7 @@ export default function RecordStream({ scoped }) {
   const save = async () => {
     setErr(null); setMsg(null)
     if (!title.trim()) return setErr('Title is required')
-    if (!(Number(gross) > 0)) return setErr('Gross is required')
+    if (Number(gross) < 0) return setErr('Gross cannot be negative')
     setSaving(true)
     try {
       await saveStream({
@@ -479,7 +479,7 @@ export default function RecordStream({ scoped }) {
         </div>
 
         <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button className="btn" onClick={save} disabled={saving || !streamerId || !title.trim() || !(Number(gross) > 0)}>
+          <button className="btn" onClick={save} disabled={saving || !streamerId || !title.trim() || Number(gross) < 0}>
             {saving ? 'Saving…' : 'Review & submit'}
           </button>
           {msg && <span style={{ color: 'var(--good)', fontWeight: 600 }}>{msg}</span>}

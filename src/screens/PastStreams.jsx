@@ -230,8 +230,18 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
   const [streamDate, setStreamDate] = useState(s.streamDate || todayKey())
   const [title, setTitle] = useState(s.title || '')
   const [streamUrl, setStreamUrl] = useState(s.streamUrl || '')
+  // Start time (24h) + duration (h/m) that computes the end — same as Record.
+  // Prefill the duration from the stream's stored start/end (overnight-aware).
+  const initDurMin = (() => {
+    const a = (s.streamStart || '').slice(0, 5), b = (s.streamEnd || '').slice(0, 5)
+    if (!a || !b) return null
+    const [sh, sm] = a.split(':').map(Number); const [eh, em] = b.split(':').map(Number)
+    let d = (eh * 60 + em) - (sh * 60 + sm); if (d < 0) d += 1440
+    return d
+  })()
   const [startTime, setStartTime] = useState((s.streamStart || '').slice(0, 5))
-  const [endTime, setEndTime] = useState((s.streamEnd || '').slice(0, 5))
+  const [durH, setDurH] = useState(initDurMin != null ? String(Math.floor(initDurMin / 60)) : '')
+  const [durM, setDurM] = useState(initDurMin != null ? String(initDurMin % 60) : '')
   const [gross, setGross] = useState(String(s.totalSales ?? ''))
   const [showNet, setShowNet] = useState(s.net != null)
   const [net, setNet] = useState(s.net != null ? String(s.net) : '')
@@ -240,6 +250,16 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
   const [elines, setElines] = useState(soldLines.map((l) => ({ stockItemId: l.stockItemId || '', qty: String(l.qty), price: String(l.lineTotal) })))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
+
+  // End time computed from start + duration (24h, wraps past midnight) — Record's formula.
+  const endTime = (() => {
+    if (!startTime) return ''
+    const [h, m] = startTime.split(':').map(Number)
+    const total = (h || 0) * 60 + (m || 0) + (Number(durH) || 0) * 60 + (Number(durM) || 0)
+    const eh = Math.floor((total % 1440) / 60), em = total % 60
+    return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`
+  })()
+  const durHours = (Number(durH) || 0) + (Number(durM) || 0) / 60
 
   const costOf = (stockItemId) => {
     const wave = scoped.waves.filter((w) => w.stockItemId === stockItemId).sort((a, b) => b.waveNo - a.waveNo)[0]
@@ -291,9 +311,12 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
         <input style={{ ...field, flex: 1, minWidth: 200 }} type="url" value={streamUrl} onChange={(e) => setStreamUrl(e.target.value)} placeholder="Stream URL (share link)" />
       </div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
-        <label style={{ fontSize: 13, color: '#555' }}>Start <input style={{ ...field, marginLeft: 4 }} type="time" value={startTime || ''} onChange={(e) => setStartTime(e.target.value)} /></label>
-        <label style={{ fontSize: 13, color: '#555' }}>End <input style={{ ...field, marginLeft: 4 }} type="time" value={endTime || ''} onChange={(e) => setEndTime(e.target.value)} /></label>
-        <span className="note">keeps the hours — overnight end times (past midnight) are fine</span>
+        <label style={{ fontSize: 13, color: '#555' }}>Start <input style={{ ...field, marginLeft: 4 }} type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} /></label>
+        <label style={{ fontSize: 13, color: '#555' }}>Duration
+          <input style={{ ...field, width: 56, marginLeft: 6 }} type="number" min="0" value={durH} onChange={(e) => setDurH(e.target.value)} placeholder="0" /> <span className="note">h</span>
+          <input style={{ ...field, width: 56, marginLeft: 4 }} type="number" min="0" max="59" value={durM} onChange={(e) => setDurM(e.target.value)} placeholder="00" /> <span className="note">m</span>
+        </label>
+        {startTime && (Number(durH) > 0 || Number(durM) > 0) && <span className="note">Ends {endTime} · {durHours.toFixed(1)}h</span>}
       </div>
       {elines.map((l, i) => (
         <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
