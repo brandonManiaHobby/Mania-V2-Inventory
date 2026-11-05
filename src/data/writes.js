@@ -386,6 +386,18 @@ export async function editWaveCost({ stockItemId, waveNo, newUnitCost, newQty, m
   if (error) throw error
 }
 
+// MERGE WAVES (admin/manager). Blends the warehouse on-hand of the given waves
+// (or all, if waveNos empty) into one wave at the weighted-average cost. Sold and
+// streamer-held units keep their original cost — only on-hand is re-costed.
+export async function mergeWaves({ stockItemId, waveNos }) {
+  if (!stockItemId) throw new Error('No product')
+  const { error } = await supabase.rpc('merge_waves', {
+    p_stock_item_id: stockItemId,
+    p_wave_nos: (Array.isArray(waveNos) && waveNos.length) ? waveNos : null,
+  })
+  if (error) throw error
+}
+
 // Preview the impact of a cost change on past streams (before committing).
 export async function waveImpactSummary(stockItemId, waveNo, newUnitCost) {
   const { data, error } = await supabase.rpc('wave_edit_impact_summary', {

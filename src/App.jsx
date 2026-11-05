@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useAuth, Login } from './auth'
 import { useSource, int } from './data'
 import { scopeSource, capabilities } from './scoping'
@@ -25,13 +25,21 @@ export default function App() {
   // Admin "view as role" — preview the app as another role's layout.
   const [viewAs, setViewAs] = useState(null)
 
+  // Scope the source ONCE per real change, not on every render — rebuilding the
+  // whole scoped dataset each render pushed a new object down and made the record
+  // form's live figures (and other screens) thrash/lag on input. Memo keys off
+  // the primitive inputs so it only recomputes when they actually change.
+  const isAdmin = capabilities(profile).isAdmin
+  const scoped = useMemo(
+    () => scopeSource(source, (viewAs && isAdmin) ? { ...profile, role: viewAs } : profile),
+    [source, profile, viewAs, isAdmin],
+  )
+
   if (authStatus === 'checking') return <Centered>Checking session…</Centered>
   if (authStatus === 'signedOut') return <Login />
   if (authStatus === 'noProfile') return <Centered>Signed in, but no profile found for this account. An admin needs to set up your profile.</Centered>
 
-  const isAdmin = capabilities(profile).isAdmin
   const shownProfile = (viewAs && isAdmin) ? { ...profile, role: viewAs } : profile
-  const scoped = scopeSource(source, shownProfile)
 
   // Landing page by role: dashboard for analytics roles (admin/manager/lead),
   // the streamer's own stats for streamers, else their first available screen.
@@ -50,8 +58,8 @@ export default function App() {
   return (
     <NavShell profile={shownProfile} active={current} onNavigate={setActive} onSignOut={signOut}
       viewAs={viewAs} onViewAs={isAdmin ? enterViewAs : undefined} onExitViewAs={exitViewAs}>
-      {srcStatus !== 'ready' ? (
-        <p>Loading…</p>
+      {!source ? (
+        <p>{srcStatus === 'error' ? 'Couldn’t load data — refresh to try again.' : 'Loading…'}</p>
       ) : current === 'dashboard' ? (
         <Dashboard scoped={scoped} />
       ) : current === 'record' ? (

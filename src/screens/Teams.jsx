@@ -8,7 +8,7 @@ import StreamerInspectModal from '../components/StreamerInspectModal'
 // department's logo(s); tap to expand the people in it. Per person: role,
 // stock value, shows, gross, inspect performance, peek stock, reassign.
 // ============================================================
-const short = (p) => String(p).replace(/^Pokemon TCG /, '').replace(/^Topps® /, '').replace(/^Topps /, '')
+const short = (p) => String(p)
 const ROLE_LABEL = { breaker: 'Streamer', channel_lead: 'Lead', warehouse: 'Warehouse', manager: 'Manager', admin: 'Admin' }
 
 // Real department strings -> display group (tile).

@@ -25,7 +25,7 @@ export function hoursOf(s) {
 
 // Trim verbose product prefixes for display. ONE definition.
 export function shortName(p) {
-  return String(p || '').replace(/^Pokemon TCG /, '').replace(/^Topps® /, '').replace(/^Topps /, '')
+  return String(p || '')
 }
 
 // Money-view labels — one map.

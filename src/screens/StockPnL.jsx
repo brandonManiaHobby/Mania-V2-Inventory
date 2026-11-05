@@ -89,4 +89,4 @@ export default function StockPnL({ scoped, embedded }) {
     </div>
   )
 }
-function shortName(p) { return String(p).replace(/^Pokemon TCG /, '').replace(/^Topps® /, '').replace(/^Topps /, '') }
+function shortName(p) { return String(p) }

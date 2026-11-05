@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { gbp, gbp0, int, useSource, updateProduct, addStock, setWarehouseQty, editWaveCost, deleteWave, waveImpactSummary } from '../data'
+import { gbp, gbp0, int, useSource, updateProduct, addStock, setWarehouseQty, editWaveCost, deleteWave, mergeWaves, waveImpactSummary } from '../data'
 
 // ============================================================
 // EDIT PRODUCT — product attributes + folded, hardened wave administration.
@@ -88,7 +88,7 @@ export default function EditProductModal({ product, scoped, onClose }) {
 
         {/* ---- prominent adjust / remove stock bar ---- */}
         {cap.canMoveStock && (
-          <AdjustStock product={product} warehouseQty={warehouseQty} latestCost={latestCost} onDone={refresh} setErr={setErr} />
+          <AdjustStock product={product} warehouseQty={warehouseQty} latestCost={latestCost} latestWave={waves.length ? waves[waves.length - 1] : null} onDone={refresh} setErr={setErr} />
         )}
 
         {/* ---- waves ---- */}
@@ -109,6 +109,9 @@ export default function EditProductModal({ product, scoped, onClose }) {
         {/* add wave (reorder) */}
         {cap.canMoveStock && <AddWave productName={product.product} type={product.type} onDone={refresh} setErr={setErr} />}
 
+        {/* merge waves — blend warehouse on-hand to one weighted-average cost */}
+        {canProduct && <MergeWaves product={product} holdings={scoped.holdings} waves={waves} onDone={refresh} setErr={setErr} />}
+
         {err && <div style={{ color: '#c82828', marginTop: 12 }}>{err}</div>}
       </div>
     </div>
@@ -116,7 +119,7 @@ export default function EditProductModal({ product, scoped, onClose }) {
 }
 
 // ---- prominent adjust / remove / top-up bar (anyone who can move stock) ----
-function AdjustStock({ product, warehouseQty, latestCost, onDone, setErr }) {
+function AdjustStock({ product, warehouseQty, latestCost, latestWave, onDone, setErr }) {
   const [tab, setTab] = useState('remove')   // 'remove' | 'set' | 'topup'
   const [n, setN] = useState('')             // remove: units off · set: exact qty
   const [addQty, setAddQty] = useState('')
@@ -138,7 +141,14 @@ function AdjustStock({ product, warehouseQty, latestCost, onDone, setErr }) {
     try {
       if (tab === 'topup') {
         if (!(Number(addQty) > 0)) throw new Error('Enter how many units to add')
-        await addStock({ product: product.product, type: product.type, cost: Number(addCost) || 0, qty: Number(addQty) })
+        if (latestWave) {
+          // Top up ADDS to the existing latest wave at its own cost — never a new
+          // wave. (A genuinely new cost/reorder is a new wave via "Add wave".)
+          await editWaveCost({ stockItemId: product.id, waveNo: latestWave.waveNo, newUnitCost: latestWave.unitCost, newQty: (Number(latestWave.qty) || 0) + Number(addQty), mode: 'forward' })
+        } else {
+          // No waves yet — this creates the first one at the entered cost.
+          await addStock({ product: product.product, type: product.type, cost: Number(addCost) || 0, qty: Number(addQty) })
+        }
       } else {
         const target = tab === 'remove' ? afterRemove : setTo
         if (tab === 'remove' && removeN <= 0) throw new Error('Enter how many units to remove')
@@ -178,8 +188,14 @@ function AdjustStock({ product, warehouseQty, latestCost, onDone, setErr }) {
       {tab === 'topup' && (
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end' }}>
           <label style={{ fontSize: 12 }}>Units to add<br /><input style={{ ...field, marginTop: 3 }} type="number" min="0" value={addQty} onChange={(e) => setAddQty(e.target.value)} /></label>
-          <label style={{ fontSize: 12 }}>£/unit<br /><input style={{ ...field, marginTop: 3, width: 100 }} type="number" step="0.01" value={addCost} onChange={(e) => setAddCost(e.target.value)} /></label>
-          <div style={{ fontSize: 11, color: '#999', alignSelf: 'center', maxWidth: 200 }}>Same £/unit tops up the matching wave; a new £/unit starts a new wave.</div>
+          {latestWave ? (
+            <div style={{ fontSize: 13, color: '#555', alignSelf: 'center' }}>
+              adds to <strong>Wave {latestWave.waveNo}</strong> at {gbp(latestWave.unitCost)}/unit · {int(latestWave.qty)} → <strong>{int((Number(latestWave.qty) || 0) + (Number(addQty) || 0))}</strong>
+            </div>
+          ) : (
+            <label style={{ fontSize: 12 }}>£/unit<br /><input style={{ ...field, marginTop: 3, width: 100 }} type="number" step="0.01" value={addCost} onChange={(e) => setAddCost(e.target.value)} /></label>
+          )}
+          <div style={{ fontSize: 11, color: '#999', alignSelf: 'center', maxWidth: 230 }}>Top up adds onto the existing wave. A genuinely new cost/reorder is a new wave via “Add wave (reorder)” below.</div>
         </div>
       )}
 
@@ -328,6 +344,76 @@ function AddWave({ productName, type, onDone, setErr }) {
       <button onClick={save} disabled={busy || !(Number(cost) >= 0 && Number(qty) > 0)} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#1a7f37', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>Add wave</button>
       <button onClick={() => setOpen(false)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #ddd', background: '#fff', cursor: 'pointer' }}>Cancel</button>
       <div style={{ fontSize: 11, color: '#999', width: '100%' }}>A new £/unit starts a new wave; the same £/unit as an existing wave tops that one up.</div>
+    </div>
+  )
+}
+
+// ---- merge waves: blend the warehouse on-hand into one weighted-average wave ----
+function MergeWaves({ product, holdings, onDone, setErr }) {
+  const [open, setOpen] = useState(false)
+  const [sel, setSel] = useState([])
+  const [busy, setBusy] = useState(false)
+
+  // Warehouse (holder null) on-hand per wave — only these blend.
+  const rows = useMemo(() => {
+    const m = {}
+    for (const h of (holdings || [])) {
+      if (h.stockItemId === product.id && h.isWarehouse && (Number(h.qty) || 0) > 0) {
+        const b = m[h.waveNo] || (m[h.waveNo] = { qty: 0, val: 0 })
+        b.qty += Number(h.qty) || 0
+        b.val += (Number(h.qty) || 0) * (Number(h.unitCost) || 0)
+      }
+    }
+    return Object.keys(m).map((w) => ({ waveNo: Number(w), qty: m[w].qty, unitCost: m[w].qty > 0 ? m[w].val / m[w].qty : 0 }))
+      .sort((a, b) => a.waveNo - b.waveNo)
+  }, [holdings, product.id])
+
+  const chosen = rows.filter((r) => sel.includes(r.waveNo))
+  const totalQty = chosen.reduce((a, r) => a + r.qty, 0)
+  const blended = totalQty > 0 ? chosen.reduce((a, r) => a + r.qty * r.unitCost, 0) / totalQty : 0
+  const toggle = (w) => setSel(sel.includes(w) ? sel.filter((x) => x !== w) : [...sel, w])
+
+  const run = async () => {
+    setErr(null); setBusy(true)
+    try {
+      const all = chosen.length === rows.length
+      await mergeWaves({ stockItemId: product.id, waveNos: all ? null : chosen.map((r) => r.waveNo) })
+      setOpen(false); await onDone()
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+
+  if (rows.length < 2) return null   // need 2+ waves with warehouse stock to merge
+
+  if (!open) {
+    return (
+      <button onClick={() => { setSel(rows.map((r) => r.waveNo)); setOpen(true) }}
+        style={{ marginTop: 10, marginLeft: 8, padding: '7px 14px', borderRadius: 8, border: '1px dashed #bbb', background: '#faf9f7', cursor: 'pointer', fontWeight: 600 }}>
+        ⇄ Merge waves
+      </button>
+    )
+  }
+
+  return (
+    <div style={{ marginTop: 10, padding: 12, border: '1px dashed #bbb', borderRadius: 8, background: '#faf9f7' }}>
+      <div style={{ fontWeight: 700, marginBottom: 2 }}>Merge waves</div>
+      <div style={{ fontSize: 11, color: '#999', marginBottom: 8 }}>Blends the on-hand warehouse stock to one average cost. Already-sold units (and stock on streamers’ shelves) keep their original cost.</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+        {rows.map((r) => (
+          <label key={r.waveNo} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+            <input type="checkbox" checked={sel.includes(r.waveNo)} onChange={() => toggle(r.waveNo)} />
+            <span style={{ fontWeight: 600 }}>W{r.waveNo}</span>
+            <span style={{ color: '#777' }}>{int(r.qty)} on hand @ {gbp(r.unitCost)}/unit</span>
+          </label>
+        ))}
+      </div>
+      <div style={{ fontSize: 13, marginBottom: 10 }}>Result: <strong>{int(totalQty)} units</strong> @ <strong>{gbp(blended)}/unit</strong></div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button onClick={run} disabled={busy || chosen.length < 2}
+          style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#1a7f37', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: (busy || chosen.length < 2) ? 0.6 : 1 }}>
+          {busy ? 'Merging…' : 'Merge selected'}
+        </button>
+        <button onClick={() => setOpen(false)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #ddd', background: '#fff', cursor: 'pointer' }}>Cancel</button>
+      </div>
     </div>
   )
 }

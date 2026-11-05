@@ -9,7 +9,7 @@ import { gbp0, gbp, pct, displayDate, todayKey, useSource, deleteStream, editStr
 // stock). EDIT (atomic reverse-and-reapply via edit_stream) with a live
 // money preview. Both refresh the shared source so every screen recomputes.
 // ============================================================
-const short = (p) => String(p).replace(/^Pokemon TCG /, '').replace(/^Topps® /, '').replace(/^Topps /, '')
+const short = (p) => String(p)
 const PLATFORMS = ['eBay Live', 'Whatnot', 'TikTok Shop', 'Fanatics']
 const hoursOf = (s) => {
   if (!s.streamStart || !s.streamEnd) return 0

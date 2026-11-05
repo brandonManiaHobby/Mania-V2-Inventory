@@ -13,7 +13,7 @@ const LVL_COLOUR = { critical: '#c82828', low: '#c0531f', out: '#999', ok: undef
 // PLUS: oversold alert (sold > received), profit/brokered flags, and an
 // activity log of recent stock movements. Stock-level (no money toggle).
 // ============================================================
-const short = (p) => String(p).replace(/^Pokemon TCG /, '').replace(/^Topps® /, '').replace(/^Topps /, '')
+const short = (p) => String(p)
 // Compact money for the category filter chips (£37k / £1.3m), V1 parity.
 const shortMoney = (n) => { const v = Number(n || 0); return v >= 1000 ? '£' + Math.round(v / 1000) + 'k' : '£' + Math.round(v) }
 

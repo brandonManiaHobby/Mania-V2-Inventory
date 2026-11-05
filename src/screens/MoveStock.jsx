@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { restock, returnToWarehouse, availableQty, int, gbp, gbp0, useSource } from '../data'
 import SearchSelect from '../components/SearchSelect'
-const short = (p) => String(p).replace(/^Pokemon TCG /, '').replace(/^Topps® /, '').replace(/^Topps /, '')
+const short = (p) => String(p)
 
 // ============================================================
 // MOVE STOCK (Stage 5) — hardened transfers: Restock, Return.

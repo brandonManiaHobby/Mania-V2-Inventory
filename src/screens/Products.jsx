@@ -15,7 +15,7 @@ import StockPnL from './StockPnL'
 // P&L, per-wave breakdown, cost recovery (Option C), which streamers sell it,
 // and stream-vs-distro split. Sales from stream lines AND distro.
 // ============================================================
-const short = (p) => String(p).replace(/^Pokemon TCG /, '').replace(/^Topps® /, '').replace(/^Topps /, '')
+const short = (p) => String(p)
 const LABEL = { gross: 'Gross', net: 'Net', netExVat: 'Net ex-VAT', trueProfit: 'Profit' }
 
 export default function Products({ scoped }) {

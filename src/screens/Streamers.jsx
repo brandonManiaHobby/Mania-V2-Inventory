@@ -20,7 +20,7 @@ function hoursOf(s) {
   return d > 0 ? d : 0
 }
 const monL = (m) => { const d = parseLocalDate(m + '-01'); return d ? d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }) : m }
-const short = (p) => String(p).replace(/^Pokemon TCG /, '').replace(/^Topps® /, '').replace(/^Topps /, '')
+const short = (p) => String(p)
 const LABEL = { gross: 'Gross', net: 'Net', netExVat: 'Net ex-VAT', trueProfit: 'Profit' }
 
 // Distinct colour per streamer — their saved colour if set, else a stable one
