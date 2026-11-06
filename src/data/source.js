@@ -138,6 +138,33 @@ function normProfile(r) {
   }
 }
 
+// Streamer weekly-hours target (V2-only table). Keyed by profile id.
+function normTarget(r) {
+  return { streamerId: r.streamer_id, weeklyHours: num(r.weekly_hours) }
+}
+
+// Release calendar row (V2-only table). Dates/times kept as raw strings so the
+// screen can build the GMT instant itself; sport kept RAW (mapped on display).
+function normRelease(r) {
+  return {
+    id: r.id,
+    product: r.product ?? '',
+    sport: r.sport ?? null,                      // raw Topps label ('Football'/'Soccer'/...)
+    releaseDate: r.release_date ?? null,         // 'YYYY-MM-DD' or null (TBD)
+    releaseTimeUtc: r.release_time_utc ?? null,  // 'HH:MM:SS' or null
+    timeConfirmed: !!r.time_confirmed,
+    isBowman: !!r.is_bowman,
+    status: r.status ?? 'scheduled',
+    source: r.source ?? 'manual',
+    sourceUrl: r.source_url ?? null,
+    invoiceRef: r.invoice_ref ?? null,
+    invoiceAmount: r.invoice_amount == null ? null : num(r.invoice_amount),
+    invoiceDue: r.invoice_due ?? null,
+    invoiceStatus: r.invoice_status ?? 'none',
+    notes: r.notes ?? null,
+  }
+}
+
 // ---- THE SHARED SOURCE ----
 // loadSource() fetches everything once and returns the single shared object.
 // Screens read from this object; they never call supabase themselves.
@@ -160,7 +187,7 @@ async function fetchAll(table, select = '*') {
 }
 
 export async function loadSource() {
-  const [items, waves, holdings, streams, lines, distro, profiles] = await Promise.all([
+  const [items, waves, holdings, streams, lines, distro, profiles, releases, targets] = await Promise.all([
     fetchAll('stock_items'),
     fetchAll('stock_waves'),
     fetchAll('stock_holdings'),
@@ -168,8 +195,13 @@ export async function loadSource() {
     fetchAll('stream_lines'),
     fetchAll('distro_sales'),
     fetchAll('profiles'),
+    // Release calendar is a V2-only table that may not exist yet (until the
+    // migration is run). Load it tolerantly so its absence never breaks the app.
+    fetchAll('release_calendar').catch(() => ({ data: [], error: null })),
+    fetchAll('streamer_targets').catch(() => ({ data: [], error: null })),
   ])
 
+  // Core tables must load; the release calendar is optional (see above).
   const firstErr = [items, waves, holdings, streams, lines, distro, profiles]
     .map((r) => r.error).find(Boolean)
   if (firstErr) throw firstErr
@@ -183,5 +215,7 @@ export async function loadSource() {
     streamLines: (lines.data || []).map(normStreamLine),
     distroSales: (distro.data || []).map(normDistro),
     profiles: (profiles.data || []).map(normProfile),
+    releaseCalendar: ((releases && releases.data) || []).map(normRelease),
+    streamerTargets: ((targets && targets.data) || []).map(normTarget),
   }
 }

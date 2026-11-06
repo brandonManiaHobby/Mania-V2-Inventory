@@ -21,6 +21,8 @@ const NAV = [
   { id: 'products',   label: 'Products',      group: 'Analytics',  needs: (c) => c.seesAllDepartments },
   { id: 'insights',   label: 'Insights',      group: 'Analytics',  needs: (c) => c.seesAnalytics },
   { id: 'teams',      label: 'Teams',         group: 'Analytics',  needs: (c) => c.seesAnalytics },
+  { id: 'releaseday', label: 'Release day',   group: 'Analytics',  needs: (c) => c.seesAllDepartments },
+  { id: 'hours',      label: 'Hours',         group: 'Analytics',  needs: (c) => c.seesAllDepartments },
   // My Stock (now a combined page: personal stats + revenue bars + the shelf)
   { id: 'mystock',    label: 'My Stock',      group: 'My Stock',   needs: (c) => c.hasOwnShelf },
   // Stream

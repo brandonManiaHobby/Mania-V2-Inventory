@@ -3,7 +3,7 @@ import { useAuth, Login } from './auth'
 import { useSource, int } from './data'
 import { scopeSource, capabilities } from './scoping'
 import NavShell, { NAV } from './components/NavShell'
-import { Dashboard, RecordStream, Streamers, Products, MyStock, Inventory, ToppsSurvey, MoveStock, Insights, PastStreams, Teams, Finance, Export, Distro, StockIntake, Admin, Consumables, StreamLogs, ReportBuilder, Operations } from './screens'
+import { Dashboard, RecordStream, Streamers, Products, MyStock, Inventory, ToppsSurvey, MoveStock, Insights, PastStreams, Teams, Finance, Export, Distro, StockIntake, Admin, Consumables, StreamLogs, ReportBuilder, Operations, ReleaseDay, Hours } from './screens'
 
 // ============================================================
 // STAGE 4 — auth + nav shell.
@@ -76,6 +76,10 @@ export default function App() {
         <Insights scoped={scoped} />
       ) : current === 'teams' ? (
         <Teams scoped={scoped} />
+      ) : current === 'releaseday' ? (
+        <ReleaseDay scoped={scoped} />
+      ) : current === 'hours' ? (
+        <Hours scoped={scoped} />
       ) : current === 'admin' ? (
         <Admin scoped={scoped} onViewAs={isAdmin ? enterViewAs : undefined} />
       ) : current === 'mystock' ? (

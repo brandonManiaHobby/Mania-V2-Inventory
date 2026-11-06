@@ -475,3 +475,48 @@ export async function updateProduct({ id, product, type, archived, breakPrice, v
   const { error } = await supabase.from('stock_items').update(patch).eq('id', id)
   if (error) throw error
 }
+
+// ---- RELEASE CALENDAR (admin/manager only; RLS also enforces this) ----
+// Insert when no id, update when id present. Returns nothing; caller refreshes.
+export async function saveRelease(input) {
+  if (!input.product || !String(input.product).trim()) throw new Error('Product is required')
+  const row = {
+    product: String(input.product).trim(),
+    sport: input.sport ? String(input.sport).trim() : null,
+    release_date: input.releaseDate || null,
+    release_time_utc: input.releaseTimeUtc || null,
+    time_confirmed: !!input.timeConfirmed,
+    is_bowman: !!input.isBowman,
+    status: input.status || 'scheduled',
+    source: input.source || 'manual',
+    source_url: input.sourceUrl || null,
+    invoice_ref: input.invoiceRef ? String(input.invoiceRef).trim() : null,
+    invoice_amount: input.invoiceAmount === '' || input.invoiceAmount == null ? null : money2(Number(input.invoiceAmount)),
+    invoice_due: input.invoiceDue || null,
+    invoice_status: input.invoiceStatus || 'none',
+    notes: input.notes ? String(input.notes).trim() : null,
+  }
+  if (input.id) {
+    const { error } = await supabase.from('release_calendar').update(row).eq('id', input.id)
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('release_calendar').insert(row)
+    if (error) throw error
+  }
+}
+
+export async function deleteRelease(id) {
+  if (!id) throw new Error('No release')
+  const { error } = await supabase.from('release_calendar').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ---- STREAMER WEEKLY HOUR TARGETS (admin/manager; RLS enforces) ----
+export async function setStreamerTarget(streamerId, weeklyHours) {
+  if (!streamerId) throw new Error('No streamer')
+  const h = Number(weeklyHours)
+  if (!isFinite(h) || h < 0) throw new Error('Hours must be 0 or more')
+  const { error } = await supabase.from('streamer_targets')
+    .upsert({ streamer_id: streamerId, weekly_hours: money2(h), updated_at: new Date().toISOString() }, { onConflict: 'streamer_id' })
+  if (error) throw error
+}
