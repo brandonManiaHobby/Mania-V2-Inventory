@@ -5,7 +5,7 @@ export const PLATFORMS = ['eBay Live', 'Whatnot', 'TikTok Shop Live', 'Fanatics'
 
 export const CHANNELS = [
   '101 Card Breaks', '101 Card Breaks (Fanatics)', '101 Prime', '101 USA',
-  'GCMania', 'JakCollects', 'Mania Collects', 'Mania Prime', 'Mania Sports',
+  'GCMania', 'JakCollects', 'JakMania', 'Mania Collects', 'Mania Prime', 'Mania Sports',
   'ManiaPop', 'ManiaUSA',
 ]
 
@@ -29,14 +29,14 @@ export const stockLevel = (qty) => {
 export const CHANNEL_DEPARTMENT = {
   '101 Card Breaks': 'Mania/101', '101 Prime': 'Mania/101', '101 USA': 'Mania/101',
   'Mania Sports': 'Mania/101', 'Mania Prime': 'Mania/101', '101 Card Breaks (Fanatics)': 'Mania/101',
-  JakCollects: 'Mania/101', 'Mania Collects': 'Mania TCG', GCMania: 'GC Mania',
+  JakCollects: 'Mania/101', JakMania: 'Mania/101', 'Mania Collects': 'Mania TCG', GCMania: 'GC Mania',
   ManiaPop: 'GC Mania', ManiaUSA: 'Mania/101',
 }
 
 // Which channels run on which platform — selecting a platform narrows channels.
 export const PLATFORM_CHANNELS = {
   'eBay Live': ['Mania Sports', 'Mania Prime', 'Mania Collects', 'ManiaPop', 'ManiaUSA'],
-  Whatnot: ['101 Card Breaks', '101 Prime', '101 USA', 'GCMania', 'Mania Collects'],
+  Whatnot: ['101 Card Breaks', '101 Prime', '101 USA', 'GCMania', 'JakMania', 'Mania Collects'],
   'TikTok Shop Live': ['JakCollects'],
   Fanatics: ['101 Card Breaks (Fanatics)'],
 }

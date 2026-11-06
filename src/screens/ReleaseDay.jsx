@@ -93,9 +93,6 @@ export default function ReleaseDay({ scoped }) {
 
   return (
     <div>
-      <PageHead eyebrow="Calendar · Management" title="Release day"
-        hint='Click any highlighted day for detail. Topps "Football" = American football; "Soccer" = football.' />
-
       {rows.length === 0 && (
         <div className="empty">
           No releases loaded yet. {canEdit ? 'Add one, or run the release-calendar migration to seed the Topps schedule.' : 'The calendar hasn’t been set up yet.'}

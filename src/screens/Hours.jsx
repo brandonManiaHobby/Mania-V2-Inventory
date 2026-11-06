@@ -99,9 +99,6 @@ export default function Hours({ scoped }) {
 
   return (
     <div>
-      <PageHead eyebrow="Operations · Management" title="Hours"
-        hint="Who streamed, how long, and where — group-wide. The table shows this week’s actual hours against each streamer’s weekly minimum." />
-
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
         <select value={dept} onChange={(e) => setDept(e.target.value)} style={field}>
           <option value="all">All departments</option>

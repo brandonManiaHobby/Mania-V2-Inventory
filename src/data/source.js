@@ -143,6 +143,19 @@ function normTarget(r) {
   return { streamerId: r.streamer_id, weeklyHours: num(r.weekly_hours) }
 }
 
+// Unified stock activity row (v_stock_activity): who did what, when.
+function normActivity(r) {
+  return {
+    when: r.created_at ?? null,
+    actor: r.actor_name ?? null,
+    kind: r.kind ?? null,
+    product: r.product ?? null,
+    qty: r.qty == null ? null : num(r.qty),
+    cost: r.cost == null ? null : num(r.cost),
+    detail: r.detail ?? null,
+  }
+}
+
 // Release calendar row (V2-only table). Dates/times kept as raw strings so the
 // screen can build the GMT instant itself; sport kept RAW (mapped on display).
 function normRelease(r) {
@@ -187,7 +200,7 @@ async function fetchAll(table, select = '*') {
 }
 
 export async function loadSource() {
-  const [items, waves, holdings, streams, lines, distro, profiles, releases, targets] = await Promise.all([
+  const [items, waves, holdings, streams, lines, distro, profiles, releases, targets, activity] = await Promise.all([
     fetchAll('stock_items'),
     fetchAll('stock_waves'),
     fetchAll('stock_holdings'),
@@ -199,6 +212,7 @@ export async function loadSource() {
     // migration is run). Load it tolerantly so its absence never breaks the app.
     fetchAll('release_calendar').catch(() => ({ data: [], error: null })),
     fetchAll('streamer_targets').catch(() => ({ data: [], error: null })),
+    fetchAll('v_stock_activity').catch(() => ({ data: [], error: null })),
   ])
 
   // Core tables must load; the release calendar is optional (see above).
@@ -217,5 +231,6 @@ export async function loadSource() {
     profiles: (profiles.data || []).map(normProfile),
     releaseCalendar: ((releases && releases.data) || []).map(normRelease),
     streamerTargets: ((targets && targets.data) || []).map(normTarget),
+    stockActivity: ((activity && activity.data) || []).map(normActivity),
   }
 }

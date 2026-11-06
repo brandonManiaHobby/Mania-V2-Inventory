@@ -41,6 +41,7 @@ export default function RecordStream({ scoped }) {
   const [showSingles, setShowSingles] = useState(false)
   const [singlesQty, setSinglesQty] = useState('')
   const [singlesAvg, setSinglesAvg] = useState('')
+  const [singlesCostMode, setSinglesCostMode] = useState('avg')  // 'avg' per single | 'total' for all
   const [singlesRev, setSinglesRev] = useState('')
   const [giveaways, setGiveaways] = useState([])
   const [brokered, setBrokered] = useState([])
@@ -112,7 +113,12 @@ export default function RecordStream({ scoped }) {
         giveaways: giveaways.filter((g) => g.stockItemId && Number(g.qty) > 0).map((g) => ({ stock_item_id: g.stockItemId, qty: Number(g.qty) })),
         brokered: brokered.filter((b) => b.stockItemId && Number(b.qty) > 0).map((b) => ({ stockItemId: b.stockItemId, qty: Number(b.qty), price: Number(b.price) || 0, ownerId: b.ownerId || null })),
         singlesQty: showSingles ? singlesQty : 0,
-        singlesAvg: showSingles ? singlesAvg : 0,
+        // record_stream stores an avg cost per single; if "total" mode, convert.
+        singlesAvg: showSingles
+          ? (singlesCostMode === 'total'
+              ? ((Number(singlesQty) || 0) > 0 ? (Number(singlesAvg) || 0) / (Number(singlesQty) || 0) : 0)
+              : singlesAvg)
+          : 0,
         singlesRev: showSingles ? singlesRev : 0,
       })
       setMsg('Stream saved ✓')
@@ -121,7 +127,7 @@ export default function RecordStream({ scoped }) {
       setLines([{ stockItemId: '', qty: '', price: '' }]); setTitle(''); setStreamUrl('')
       setStreamType(''); setMixedTypes([]); setStartTime(''); setDurH(''); setDurM('')
       setCopilotOn(false); setCopilotId(''); setGiveaways([]); setBrokered([])
-      setShowSingles(false); setSinglesQty(''); setSinglesAvg(''); setSinglesRev('')
+      setShowSingles(false); setSinglesQty(''); setSinglesAvg(''); setSinglesCostMode('avg'); setSinglesRev('')
     } catch (e) {
       setErr(e.message || 'Could not save')
     } finally { setSaving(false) }
@@ -191,7 +197,9 @@ export default function RecordStream({ scoped }) {
   // Singles (loose cards) add to the live totals — revenue + their cost. Loose
   // cards are second-hand, so VAT-free (profit = revenue − cost).
   const singlesQtyN = showSingles ? (Number(singlesQty) || 0) : 0
-  const singlesCostN = singlesQtyN * (showSingles ? (Number(singlesAvg) || 0) : 0)
+  const singlesInputN = showSingles ? (Number(singlesAvg) || 0) : 0
+  // "total" mode: the figure entered is the whole singles cost; else it's per single.
+  const singlesCostN = singlesCostMode === 'total' ? singlesInputN : singlesQtyN * singlesInputN
   const singlesRevN = showSingles ? (Number(singlesRev) || 0) : 0
   const revBasis = (netApplied ? money.net : money.gross) + singlesRevN
   const totalCost = money.costPaid + singlesCostN
@@ -424,12 +432,22 @@ export default function RecordStream({ scoped }) {
 
         {showSingles && (
           <>
-            <div style={groupLabel}>Singles <span className="note" style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>· loose cards sold alongside boxes</span></div>
+            <div style={groupLabel}>Singles <span className="note" style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>· loose cards sold alongside boxes · VAT-free (second-hand)</span></div>
             <div className="row2" style={{ gridTemplateColumns: '1fr 1fr 1fr auto', alignItems: 'end' }}>
               <div className="field" style={{ marginBottom: 0 }}><label>Qty</label><input style={field} type="number" value={singlesQty} onChange={(e) => setSinglesQty(e.target.value)} /></div>
-              <div className="field" style={{ marginBottom: 0 }}><label>Avg cost / single</label><input style={field} type="number" value={singlesAvg} onChange={(e) => setSinglesAvg(e.target.value)} /></div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                  <span>{singlesCostMode === 'total' ? 'Total singles cost' : 'Avg cost / single'}</span>
+                  <select value={singlesCostMode} onChange={(e) => setSinglesCostMode(e.target.value)}
+                    style={{ fontSize: 11, padding: '1px 4px', border: '1px solid var(--line)', borderRadius: 6, background: 'var(--card)', color: 'var(--muted)' }}>
+                    <option value="avg">Avg</option>
+                    <option value="total">Total</option>
+                  </select>
+                </label>
+                <input style={field} type="number" value={singlesAvg} onChange={(e) => setSinglesAvg(e.target.value)} />
+              </div>
               <div className="field" style={{ marginBottom: 0 }}><label>Singles revenue</label><input style={field} type="number" value={singlesRev} onChange={(e) => setSinglesRev(e.target.value)} /></div>
-              <button onClick={() => { setShowSingles(false); setSinglesQty(''); setSinglesAvg(''); setSinglesRev('') }} style={{ ...field, cursor: 'pointer', background: 'transparent', color: 'var(--muted)', marginBottom: 0 }}>Remove</button>
+              <button onClick={() => { setShowSingles(false); setSinglesQty(''); setSinglesAvg(''); setSinglesCostMode('avg'); setSinglesRev('') }} style={{ ...field, cursor: 'pointer', background: 'transparent', color: 'var(--muted)', marginBottom: 0 }}>Remove</button>
             </div>
           </>
         )}

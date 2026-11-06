@@ -33,14 +33,14 @@ const NAV = [
   { id: 'intake',     label: 'Add stock',     group: 'Inventory',  needs: (c) => c.canMoveStock },
   { id: 'consumables',label: 'Consumables',   group: 'Inventory',  needs: (c) => c.seesInventory },
   { id: 'distro',     label: 'Distro sale',   group: 'Inventory',  needs: (c) => c.canMoveStock },
-  // Operations — manager hub: hours, finance, reporting + the TCG audit
-  { id: 'hours',      label: 'Hours',         group: 'Operations', needs: (c) => c.seesAllDepartments },
-  { id: 'finance',    label: 'Finance',       group: 'Operations', needs: (c) => c.seesAllDepartments },
+  // Operations — manager hub: finance, reporting, hours + the TCG audit
+  { id: 'finance',    label: 'Finance',        group: 'Operations', needs: (c) => c.seesAllDepartments },
   { id: 'reports',    label: 'Report builder', group: 'Operations', needs: (c) => c.seesAllDepartments },
-  { id: 'export',     label: 'Export',        group: 'Operations', needs: (c) => c.seesAllDepartments },
-  { id: 'streamlogs', label: 'Stream logs',   group: 'Operations', needs: (c) => c.seesAllDepartments },
-  { id: 'toppssurvey',label: 'Topps survey',  group: 'Operations', needs: (c) => c.seesAllDepartments },
-  { id: 'operations', label: 'TCG audit',     group: 'Operations', needs: (c) => c.isAdmin && c.department === 'Mania TCG' },
+  { id: 'toppssurvey',label: 'Topps survey',   group: 'Operations', needs: (c) => c.seesAllDepartments },
+  { id: 'streamlogs', label: 'Stream logs',    group: 'Operations', needs: (c) => c.seesAllDepartments },
+  { id: 'hours',      label: 'Hours',          group: 'Operations', needs: (c) => c.seesAllDepartments },
+  { id: 'export',     label: 'Insight Export', group: 'Operations', needs: (c) => c.seesAllDepartments },
+  { id: 'operations', label: 'TCG audit',      group: 'Operations', needs: (c) => c.isAdmin && c.department === 'Mania TCG' },
   // Admin
   { id: 'admin',      label: 'Admin',         group: 'Admin',      needs: (c) => c.isAdmin },
 ]
@@ -70,7 +70,7 @@ const HINTS = {
   toppssurvey: 'Prep the monthly Fanatics / Topps EMEA submission.',
   admin: 'Approve, edit and assign people across departments.',
   operations: 'Rota’d hours vs actual streamed hours (Mania TCG).',
-  releaseday: 'Upcoming Topps releases with a live GMT countdown.',
+  releaseday: 'Upcoming Topps releases with a live GMT countdown — click any day for detail.',
   hours: 'Group-wide streamed hours — who, how long and where, vs weekly targets.',
 }
 const ROLE_LABEL = { admin: 'Admin', manager: 'Manager', lead: 'Lead', warehouse: 'Warehouse', streamer: 'Streamer' }

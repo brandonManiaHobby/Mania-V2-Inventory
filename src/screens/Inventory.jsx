@@ -14,6 +14,13 @@ const LVL_COLOUR = { critical: '#c82828', low: '#c0531f', out: '#999', ok: undef
 // activity log of recent stock movements. Stock-level (no money toggle).
 // ============================================================
 const short = (p) => String(p)
+// Friendly labels for the activity feed's transaction kinds.
+const KIND_LABEL = {
+  restock: 'Wave added (restock)', wave_added: 'Wave added', wave_edited: 'Wave cost edited',
+  wave_deleted: 'Wave deleted', move: 'Stock move', checkout: 'Stock move', issue: 'Stock move',
+  return: 'Return to warehouse', sale: 'Stream sale', stream: 'Stream sale', giveaway: 'Giveaway',
+  adjustment: 'Wave merge / adjust', distro: 'Distro sale', singles: 'Singles created',
+}
 // Compact money for the category filter chips (£37k / £1.3m), V1 parity.
 const shortMoney = (n) => { const v = Number(n || 0); return v >= 1000 ? '£' + Math.round(v / 1000) + 'k' : '£' + Math.round(v) }
 
@@ -70,12 +77,29 @@ export default function Inventory({ scoped }) {
   }), { value: 0, warehouse: 0, withStreamers: 0, products: 0 })
   const nameOf = (hid) => hid == null ? 'Warehouse' : (scoped.profiles.find((p) => p.id === hid)?.name || 'Streamer')
 
-  // activity log from distro sales (most reliably dated movements we have in scope)
+  // Unified activity log: restocks/wave adds, wave edits & deletes, stock moves,
+  // sales, giveaways, distro, and singles — each with who + when (from
+  // v_stock_activity). Falls back to distro-only if the view isn't live yet.
   const activity = useMemo(() => {
+    const src = scoped.stockActivity || []
+    if (src.length) {
+      return src
+        .map((a) => ({
+          when: (a.when || '').replace('T', ' ').slice(0, 16),
+          who: a.actor || '—',
+          type: KIND_LABEL[a.kind] || (a.kind || '').replace(/_/g, ' '),
+          product: a.product,
+          qty: a.qty,
+          detail: a.detail || (a.cost != null ? gbp0(a.cost) : ''),
+        }))
+        .sort((x, y) => (y.when || '').localeCompare(x.when || ''))
+        .slice(0, 300)
+    }
+    // Fallback (pre-migration): distro sales only.
     const items = []
     for (const d of scoped.distroSales) {
       const item = scoped.stockItems.find((s) => s.id === d.stockItemId)
-      items.push({ when: d.soldOn || (d.createdAt || '').slice(0, 10), type: 'Distro sale', product: item?.product || d.product, qty: d.qty, detail: gbp0(d.revenue), note: d.note })
+      items.push({ when: d.soldOn || (d.createdAt || '').slice(0, 10), who: '—', type: 'Distro sale', product: item?.product || d.product, qty: d.qty, detail: gbp0(d.revenue) })
     }
     return items.sort((a, b) => (b.when || '').localeCompare(a.when || '')).slice(0, 50)
   }, [scoped])
@@ -95,13 +119,16 @@ export default function Inventory({ scoped }) {
 
       {tab === 'activity' ? (
         <div style={{ padding: 16, border: '1px solid #eee', borderRadius: 12, background: '#fff', overflowX: 'auto' }}>
-          <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 480 }}>
-            <thead><tr style={{ color: '#999', fontSize: 12, textAlign: 'left' }}><th>Date</th><th>Type</th><th>Product</th><th style={{ textAlign: 'right' }}>Qty</th><th style={{ textAlign: 'right' }}>Value</th></tr></thead>
+          <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 620 }}>
+            <thead><tr style={{ color: '#999', fontSize: 12, textAlign: 'left' }}><th>When</th><th>Who</th><th>Activity</th><th>Product</th><th>Detail</th></tr></thead>
             <tbody>
               {activity.map((a, i) => (
                 <tr key={i} style={{ borderTop: '1px solid #f3f3f3' }}>
-                  <td style={{ padding: '6px 0' }}>{a.when}</td><td>{a.type}</td><td>{short(a.product)}</td>
-                  <td style={{ textAlign: 'right' }}>{int(a.qty)}</td><td style={{ textAlign: 'right' }}>{a.detail}</td>
+                  <td style={{ padding: '6px 8px 6px 0', whiteSpace: 'nowrap', color: '#777' }}>{a.when}</td>
+                  <td style={{ fontWeight: 600 }}>{a.who}</td>
+                  <td>{a.type}</td>
+                  <td>{short(a.product)}</td>
+                  <td style={{ color: '#555' }}>{a.detail}</td>
                 </tr>
               ))}
               {activity.length === 0 && <tr><td colSpan={5} style={{ padding: 12, color: '#888' }}>No activity in scope.</td></tr>}
