@@ -21,33 +21,30 @@ const NAV = [
   { id: 'products',   label: 'Products',      group: 'Analytics',  needs: (c) => c.seesAllDepartments },
   { id: 'insights',   label: 'Insights',      group: 'Analytics',  needs: (c) => c.seesAnalytics },
   { id: 'teams',      label: 'Teams',         group: 'Analytics',  needs: (c) => c.seesAnalytics },
-  { id: 'releaseday', label: 'Release day',   group: 'Analytics',  needs: (c) => c.seesAllDepartments },
-  { id: 'hours',      label: 'Hours',         group: 'Analytics',  needs: (c) => c.seesAllDepartments },
   // My Stock (now a combined page: personal stats + revenue bars + the shelf)
   { id: 'mystock',    label: 'My Stock',      group: 'My Stock',   needs: (c) => c.hasOwnShelf },
   // Stream
   { id: 'record',     label: 'Record stream', group: 'Stream',     needs: (c) => c.canRecordStream },
   { id: 'past',       label: 'Past streams',  group: 'Stream',     needs: (c) => c.canRecordStream },
-  // Inventory
+  // Inventory — parent tab holding the full stock lifecycle + the release calendar
   { id: 'inventory',  label: 'Inventory',     group: 'Inventory',  needs: (c) => c.seesInventory },
+  { id: 'releaseday', label: 'Release day',   group: 'Inventory',  needs: (c) => c.seesAllDepartments },
+  { id: 'movestock',  label: 'Move stock',    group: 'Inventory',  needs: (c) => c.canMoveStock },
   { id: 'intake',     label: 'Add stock',     group: 'Inventory',  needs: (c) => c.canMoveStock },
   { id: 'consumables',label: 'Consumables',   group: 'Inventory',  needs: (c) => c.seesInventory },
-  // Move stock
-  { id: 'movestock',  label: 'Restock',       group: 'Move stock', needs: (c) => c.canMoveStock },
-  { id: 'distro',     label: 'Distro sale',   group: 'Move stock', needs: (c) => c.canMoveStock },
-  // Finance (admin/manager) — V2 addition, right end
-  { id: 'finance',    label: 'Finance',       group: 'Finance',    needs: (c) => c.seesAllDepartments },
-  // Reporting (admin/manager) — V2 addition, right end
-  { id: 'reports',    label: 'Report builder', group: 'Reporting', needs: (c) => c.seesAllDepartments },
-  { id: 'export',     label: 'Export',        group: 'Reporting',  needs: (c) => c.seesAllDepartments },
-  { id: 'streamlogs', label: 'Stream logs',   group: 'Reporting',  needs: (c) => c.seesAllDepartments },
-  { id: 'toppssurvey',label: 'Topps survey',  group: 'Reporting',  needs: (c) => c.seesAllDepartments },
+  { id: 'distro',     label: 'Distro sale',   group: 'Inventory',  needs: (c) => c.canMoveStock },
+  // Operations — manager hub: hours, finance, reporting + the TCG audit
+  { id: 'hours',      label: 'Hours',         group: 'Operations', needs: (c) => c.seesAllDepartments },
+  { id: 'finance',    label: 'Finance',       group: 'Operations', needs: (c) => c.seesAllDepartments },
+  { id: 'reports',    label: 'Report builder', group: 'Operations', needs: (c) => c.seesAllDepartments },
+  { id: 'export',     label: 'Export',        group: 'Operations', needs: (c) => c.seesAllDepartments },
+  { id: 'streamlogs', label: 'Stream logs',   group: 'Operations', needs: (c) => c.seesAllDepartments },
+  { id: 'toppssurvey',label: 'Topps survey',  group: 'Operations', needs: (c) => c.seesAllDepartments },
+  { id: 'operations', label: 'TCG audit',     group: 'Operations', needs: (c) => c.isAdmin && c.department === 'Mania TCG' },
   // Admin
   { id: 'admin',      label: 'Admin',         group: 'Admin',      needs: (c) => c.isAdmin },
-  // Operations audit — admin + Mania TCG only (V1 parity)
-  { id: 'operations', label: 'Operations',    group: 'Operations', needs: (c) => c.isAdmin && c.department === 'Mania TCG' },
 ]
-const GROUP_ORDER = ['Analytics', 'My Stock', 'Stream', 'Inventory', 'Move stock', 'Finance', 'Reporting', 'Admin', 'Operations']
+const GROUP_ORDER = ['Analytics', 'My Stock', 'Stream', 'Inventory', 'Operations', 'Admin']
 // Per-screen descriptions for the V1-style section-header card (shown once in
 // the shell so every screen gets the same chrome).
 // V1's exact screen blurbs (ported verbatim), plus the V2-only screens.
@@ -72,7 +69,9 @@ const HINTS = {
   streamlogs: 'Every product sold on a stream, per unit.',
   toppssurvey: 'Prep the monthly Fanatics / Topps EMEA submission.',
   admin: 'Approve, edit and assign people across departments.',
-  operations: 'Rota’d hours vs actual streamed hours.',
+  operations: 'Rota’d hours vs actual streamed hours (Mania TCG).',
+  releaseday: 'Upcoming Topps releases with a live GMT countdown.',
+  hours: 'Group-wide streamed hours — who, how long and where, vs weekly targets.',
 }
 const ROLE_LABEL = { admin: 'Admin', manager: 'Manager', lead: 'Lead', warehouse: 'Warehouse', streamer: 'Streamer' }
 const DBROLE_LABEL = { admin: 'Admin', manager: 'Manager', channel_lead: 'Lead', warehouse: 'Warehouse', breaker: 'Streamer' }
