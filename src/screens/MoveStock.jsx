@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { restock, returnToWarehouse, availableQty, int, gbp, gbp0, useSource } from '../data'
+import { restock, returnToWarehouse, handToStreamer, availableQty, int, gbp, gbp0, useSource } from '../data'
 import SearchSelect from '../components/SearchSelect'
 const short = (p) => String(p)
 
@@ -12,6 +12,7 @@ const short = (p) => String(p)
 // ============================================================
 const OPS = [
   { k: 'restock', label: 'Restock', dir: 'Warehouse → Streamer' },
+  { k: 'handover', label: 'Hand to streamer', dir: 'Your shelf → Streamer' },
   { k: 'return', label: 'Return', dir: 'Streamer → Warehouse' },
 ]
 
@@ -28,6 +29,7 @@ export default function MoveStock({ scoped }) {
   const [err, setErr] = useState(null)
 
   const items = scoped.stockItems.filter((s) => !s.archived)
+  const me = scoped.cap?.userId  // current user's shelf (handover source)
   // Searchable options with live levels in the note (V1 Restock style).
   // Restock: ONLY products with stock in the warehouse (hide out-of-stock —
   // you can't issue what isn't there). Return: only what this person holds.
@@ -40,12 +42,20 @@ export default function MoveStock({ scoped }) {
         .map((s) => ({ id: s.id, label: s.product, note: `${int(byId[s.id])} on their shelf` }))
         .sort((a, b) => a.label.localeCompare(b.label))
     }
+    if (op === 'handover') {
+      if (!me) return []
+      const byId = {}
+      for (const h of scoped.holdings) { if (h.holderId === me && h.qty > 0) byId[h.stockItemId] = (byId[h.stockItemId] || 0) + h.qty }
+      return items.filter((s) => byId[s.id] > 0)
+        .map((s) => ({ id: s.id, label: s.product, note: `${int(byId[s.id])} on your shelf` }))
+        .sort((a, b) => a.label.localeCompare(b.label))
+    }
     return items
       .map((s) => ({ s, wh: availableQty(scoped, { stockItemId: s.id, holderId: 'warehouse' }) }))
       .filter((x) => x.wh > 0)
       .map(({ s, wh }) => ({ id: s.id, label: s.product, note: `${s.type || 'Uncategorised'} · ${int(wh)} in warehouse` }))
       .sort((a, b) => a.label.localeCompare(b.label))
-  }, [items, scoped, op, who])
+  }, [items, scoped, op, who, me])
   // Anyone who can hold a shelf can receive/return stock — streamers, leads,
   // and admins/managers who run breaks themselves (e.g. Brandon).
   const streamers = scoped.profiles
@@ -55,6 +65,7 @@ export default function MoveStock({ scoped }) {
   // current levels for the preview
   const warehouseQty = stockItemId ? availableQty(scoped, { stockItemId, holderId: 'warehouse' }) : 0
   const streamerQty = (stockItemId && who) ? availableQty(scoped, { stockItemId, holderId: who }) : 0
+  const myQty = (stockItemId && me) ? availableQty(scoped, { stockItemId, holderId: me }) : 0
 
   const n = Number(qty) || 0
 
@@ -91,16 +102,18 @@ export default function MoveStock({ scoped }) {
 
   const doMove = async () => {
     setErr(null); setMsg(null)
-    if (!who) return setErr(op === 'restock' ? 'Pick who you’re restocking' : 'Pick whose stock to return')
+    if (!who) return setErr(op === 'return' ? 'Pick whose stock to return' : op === 'handover' ? 'Pick who you’re handing to' : 'Pick who you’re restocking')
     if (!stockItemId) return setErr('Pick a product')
     if (!(n > 0)) return setErr('Enter a quantity')
     if (op === 'restock' && n > warehouseQty) return setErr(`Only ${warehouseQty} in the warehouse`)
     if (op === 'return' && n > streamerQty) return setErr(`They only have ${streamerQty}`)
+    if (op === 'handover' && n > myQty) return setErr(`You only have ${myQty} on your shelf`)
     setBusy(true)
     try {
       if (op === 'restock') await restock(scoped, { stockItemId, toStreamerId: who, qty: n })
+      else if (op === 'handover') await handToStreamer(scoped, { stockItemId, toStreamerId: who, qty: n })
       else await returnToWarehouse(scoped, { stockItemId, fromStreamerId: who, qty: n })
-      setMsg(op === 'restock' ? `Added ${n} to ${nameOf(who)}’s shelf ✓` : `Returned ${n} to the warehouse ✓`)
+      setMsg(op === 'return' ? `Returned ${n} to the warehouse ✓` : `Handed ${n} to ${nameOf(who)}’s shelf ✓`)
       await refresh(); setQty('')
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
@@ -118,19 +131,19 @@ export default function MoveStock({ scoped }) {
       </div>
 
       <div className="panel">
-        <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 2 }}>{op === 'restock' ? 'Restock' : 'Return'}</div>
+        <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 2 }}>{OPS.find((o) => o.k === op)?.label}</div>
         <div className="note" style={{ marginTop: 0, marginBottom: 16 }}>
-          {op === 'restock' ? 'Moves stock from the warehouse onto someone’s shelf, ready to run on a stream.' : 'Moves stock from a shelf back into the warehouse.'}
+          {op === 'restock' ? 'Moves stock from the warehouse onto someone’s shelf, ready to run on a stream.' : op === 'handover' ? 'Moves stock from your own shelf onto one of your streamers’ shelves.' : 'Moves stock from a shelf back into the warehouse.'}
         </div>
 
         {/* Step 1 — who */}
-        <div style={stepLbl}>1. {op === 'restock' ? 'Who are you restocking?' : 'Whose stock are you returning?'}</div>
+        <div style={stepLbl}>1. {op === 'return' ? 'Whose stock are you returning?' : op === 'handover' ? 'Who are you handing to?' : 'Who are you restocking?'}</div>
         <SearchSelect options={peopleOptions} value={who} onChange={(id) => { setWho(id); reset() }} placeholder="Search people…" emptyText="No people" />
         {who && (
           <div style={{ marginTop: 10, border: '1px solid var(--line)', borderRadius: 10, background: 'var(--bg)', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, padding: '12px 14px' }}>
               <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.4, color: 'var(--muted)', textTransform: 'uppercase' }}>
-                {nameOf(who)} currently {op === 'restock' ? 'have' : 'hold'}
+                {nameOf(who)} currently {op === 'return' ? 'hold' : 'have'}
               </div>
               {shelf.length > 0 && <div className="note">{int(shelfTotals.products)} products · {int(shelfTotals.units)} units · {gbp0(shelfTotals.value)}</div>}
             </div>
@@ -173,10 +186,10 @@ export default function MoveStock({ scoped }) {
         )}
 
         {/* Step 2 — product */}
-        <div style={{ ...stepLbl, marginTop: 18 }}>2. {op === 'restock' ? 'What are you adding?' : 'What are you returning?'}</div>
+        <div style={{ ...stepLbl, marginTop: 18 }}>2. {op === 'return' ? 'What are you returning?' : op === 'handover' ? 'What are you handing over?' : 'What are you adding?'}</div>
         <SearchSelect options={productOptions} value={stockItemId} onChange={(id) => { setStockItemId(id); reset() }} placeholder="Select a product…" emptyText="No stock matches" />
         {stockItemId && (
-          <div className="note" style={{ marginTop: 6 }}>In warehouse: <strong>{int(warehouseQty)}</strong>{who ? ` · ${nameOf(who)} has ${int(streamerQty)}` : ''}</div>
+          <div className="note" style={{ marginTop: 6 }}>{op === 'handover' ? <>On your shelf: <strong>{int(myQty)}</strong>{who ? ` · ${nameOf(who)} has ${int(streamerQty)}` : ''}</> : <>In warehouse: <strong>{int(warehouseQty)}</strong>{who ? ` · ${nameOf(who)} has ${int(streamerQty)}` : ''}</>}</div>
         )}
 
         {/* Step 3 — qty */}
@@ -188,6 +201,8 @@ export default function MoveStock({ scoped }) {
           <div style={{ marginTop: 10, fontSize: 13 }}>
             {op === 'restock'
               ? <>Warehouse <strong>{int(warehouseQty)} → {int(warehouseQty - n)}</strong> · {nameOf(who)} <strong>{int(streamerQty)} → {int(streamerQty + n)}</strong></>
+              : op === 'handover'
+              ? <>Your shelf <strong>{int(myQty)} → {int(myQty - n)}</strong> · {nameOf(who)} <strong>{int(streamerQty)} → {int(streamerQty + n)}</strong></>
               : <>{nameOf(who)} <strong>{int(streamerQty)} → {int(streamerQty - n)}</strong> · Warehouse <strong>{int(warehouseQty)} → {int(warehouseQty + n)}</strong></>}
           </div>
         )}
@@ -196,7 +211,7 @@ export default function MoveStock({ scoped }) {
         {msg && <div className="ok" style={{ marginTop: 12 }}>{msg}</div>}
 
         <button className="btn" onClick={doMove} disabled={busy} style={{ marginTop: 16 }}>
-          {busy ? 'Working…' : op === 'restock' ? 'Add to shelf' : 'Return to warehouse'}
+          {busy ? 'Working…' : op === 'return' ? 'Return to warehouse' : op === 'handover' ? 'Hand to shelf' : 'Add to shelf'}
         </button>
       </div>
     </div>

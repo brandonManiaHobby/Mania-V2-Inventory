@@ -172,6 +172,19 @@ export async function returnToWarehouse(source, { stockItemId, fromStreamerId, q
   if (error) throw error
 }
 
+// HANDOVER: YOUR OWN shelf -> streamer. Lets a lead parcel out stock they
+// hold to their team (source is always the caller's own holdings, server-side).
+export async function handToStreamer(source, { stockItemId, toStreamerId, qty }) {
+  const n = Number(qty)
+  if (!stockItemId) throw new Error('Pick a product')
+  if (!toStreamerId) throw new Error('Pick a streamer')
+  if (!(n > 0)) throw new Error('Quantity must be positive')
+  const { error } = await supabase.rpc('record_handover', {
+    p_stock_item_id: stockItemId, p_qty: n, p_to_breaker: toStreamerId,
+  })
+  if (error) throw error
+}
+
 // DISTRO SALE: warehouse -> sold. Reuses the FIXED record_distro_sale (atomic
 // decrement + waterfall), then attaches the B2B/Shop record: sale channel,
 // customer, invoice ref + optional uploaded invoice file, payment status/due.
