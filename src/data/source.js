@@ -203,10 +203,20 @@ export async function loadSource() {
     fetchAll('card_show_costs').catch(() => ({ data: [], error: null })),
   ])
 
-  // Core tables must load; the release calendar is optional (see above).
-  const firstErr = [items, waves, holdings, streams, lines, distro, profiles]
-    .map((r) => r.error).find(Boolean)
-  if (firstErr) throw firstErr
+  // Surface exactly which relation failed (core = fatal, rest = tolerated).
+  const named = {
+    stock_items: items, stock_waves: waves, stock_holdings: holdings,
+    v_streams_scoped: streams, stream_lines: lines, distro_sales: distro, profiles,
+    release_calendar: releases, streamer_targets: targets, v_stock_activity: activity,
+    card_shows: cardShows, card_show_entries: showEntries, card_show_costs: showCosts,
+  }
+  const problems = Object.entries(named).filter(([, r]) => r && r.error)
+  if (problems.length) console.error('[loadSource] fetch errors:', problems.map(([t, r]) => `${t}: ${r.error?.message || r.error?.code || r.error}`))
+  const CORE = ['stock_items', 'stock_waves', 'stock_holdings', 'v_streams_scoped', 'stream_lines', 'distro_sales', 'profiles']
+  const coreFail = problems.filter(([t]) => CORE.includes(t))
+  if (coreFail.length) {
+    throw new Error(coreFail.map(([t, r]) => `${t}: ${r.error?.message || r.error?.code || 'error'}`).join('\n'))
+  }
 
   return {
     loadedAt: new Date(),

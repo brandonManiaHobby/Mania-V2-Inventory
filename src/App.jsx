@@ -20,7 +20,7 @@ const PLACEHOLDER = {
 
 export default function App() {
   const { status: authStatus, profile, signOut } = useAuth()
-  const { source, status: srcStatus } = useSource()
+  const { source, status: srcStatus, error: srcError } = useSource()
   const [active, setActive] = useState(null)
   // Admin "view as role" — preview the app as another role's layout.
   const [viewAs, setViewAs] = useState(null)
@@ -59,7 +59,10 @@ export default function App() {
     <NavShell profile={shownProfile} active={current} onNavigate={setActive} onSignOut={signOut}
       viewAs={viewAs} onViewAs={isAdmin ? enterViewAs : undefined} onExitViewAs={exitViewAs}>
       {!source ? (
-        <p>{srcStatus === 'error' ? 'Couldn’t load data — refresh to try again.' : 'Loading…'}</p>
+        <div style={{ padding: 16 }}>
+          <p>{srcStatus === 'error' ? 'Couldn’t load data — refresh to try again.' : 'Loading…'}</p>
+          {srcStatus === 'error' && srcError && <p style={{ fontSize: 12, color: 'var(--muted)', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{srcError}</p>}
+        </div>
       ) : current === 'dashboard' ? (
         <Dashboard scoped={scoped} />
       ) : current === 'record' ? (
