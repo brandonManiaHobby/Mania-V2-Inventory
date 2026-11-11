@@ -143,42 +143,27 @@ function normTarget(r) {
   return { streamerId: r.streamer_id, weeklyHours: num(r.weekly_hours) }
 }
 
-// Unified stock activity row (v_stock_activity): who did what, when.
-function normActivity(r) {
+// Card show (shared off-site event) + per-department entries + itemised costs.
+function normCardShow(r) {
   return {
-    when: r.created_at ?? null,
-    actor: r.actor_name ?? null,
-    kind: r.kind ?? null,
-    product: r.product ?? null,
-    qty: r.qty == null ? null : num(r.qty),
-    cost: r.cost == null ? null : num(r.cost),
-    detail: r.detail ?? null,
+    id: r.id, name: r.name ?? '', location: r.location ?? null,
+    startDate: r.start_date ?? null, endDate: r.end_date ?? null,
+    days: num(r.days), operatingHours: num(r.operating_hours),
+    notes: r.notes ?? null, createdBy: r.created_by ?? null, createdAt: r.created_at ?? null,
   }
 }
-
-// Release calendar row (V2-only table). Dates/times kept as raw strings so the
-// screen can build the GMT instant itself; sport kept RAW (mapped on display).
-function normRelease(r) {
+function normShowEntry(r) {
   return {
-    id: r.id,
-    product: r.product ?? '',
-    sport: r.sport ?? null,                      // raw Topps label ('Football'/'Soccer'/...)
-    releaseDate: r.release_date ?? null,         // 'YYYY-MM-DD' or null (TBD)
-    releaseTimeUtc: r.release_time_utc ?? null,  // 'HH:MM:SS' or null
-    timeConfirmed: !!r.time_confirmed,
-    isBowman: !!r.is_bowman,
-    status: r.status ?? 'scheduled',
-    source: r.source ?? 'manual',
-    sourceUrl: r.source_url ?? null,
-    invoiceRef: r.invoice_ref ?? null,
-    invoiceAmount: r.invoice_amount == null ? null : num(r.invoice_amount),
-    invoiceDue: r.invoice_due ?? null,
-    invoiceStatus: r.invoice_status ?? 'none',
-    notes: r.notes ?? null,
+    id: r.id, showId: r.show_id, profileId: r.profile_id, department: r.department ?? null,
+    hours: num(r.hours), overnight: !!r.overnight,
+    salesCash: num(r.sales_cash), salesCard: num(r.sales_card), salesTransfer: num(r.sales_transfer),
+    profit: num(r.profit),
   }
 }
+function normShowCost(r) {
+  return { id: r.id, showId: r.show_id, profileId: r.profile_id ?? null, label: r.label ?? '', amount: num(r.amount) }
+}
 
-// ---- THE SHARED SOURCE ----
 // loadSource() fetches everything once and returns the single shared object.
 // Screens read from this object; they never call supabase themselves.
 
@@ -200,7 +185,7 @@ async function fetchAll(table, select = '*') {
 }
 
 export async function loadSource() {
-  const [items, waves, holdings, streams, lines, distro, profiles, releases, targets, activity] = await Promise.all([
+  const [items, waves, holdings, streams, lines, distro, profiles, releases, targets, activity, cardShows, showEntries, showCosts] = await Promise.all([
     fetchAll('stock_items'),
     fetchAll('stock_waves'),
     fetchAll('stock_holdings'),
@@ -213,6 +198,9 @@ export async function loadSource() {
     fetchAll('release_calendar').catch(() => ({ data: [], error: null })),
     fetchAll('streamer_targets').catch(() => ({ data: [], error: null })),
     fetchAll('v_stock_activity').catch(() => ({ data: [], error: null })),
+    fetchAll('card_shows').catch(() => ({ data: [], error: null })),
+    fetchAll('card_show_entries').catch(() => ({ data: [], error: null })),
+    fetchAll('card_show_costs').catch(() => ({ data: [], error: null })),
   ])
 
   // Core tables must load; the release calendar is optional (see above).
@@ -232,5 +220,8 @@ export async function loadSource() {
     releaseCalendar: ((releases && releases.data) || []).map(normRelease),
     streamerTargets: ((targets && targets.data) || []).map(normTarget),
     stockActivity: ((activity && activity.data) || []).map(normActivity),
+    cardShows: ((cardShows && cardShows.data) || []).map(normCardShow),
+    cardShowEntries: ((showEntries && showEntries.data) || []).map(normShowEntry),
+    cardShowCosts: ((showCosts && showCosts.data) || []).map(normShowCost),
   }
 }

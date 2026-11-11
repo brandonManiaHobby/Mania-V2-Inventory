@@ -69,7 +69,7 @@ function streamDept(stream, source) {
 function emptyView() {
   return {
     stockItems: [], waves: [], holdings: [], streams: [],
-    streamLines: [], distroSales: [], profiles: [], releaseCalendar: [], streamerTargets: [], stockActivity: [],
+    streamLines: [], distroSales: [], profiles: [], releaseCalendar: [], streamerTargets: [], stockActivity: [], cardShows: [], cardShowEntries: [], cardShowCosts: [],
   }
 }
 

@@ -525,6 +525,77 @@ export async function deleteRelease(id) {
 }
 
 // ---- STREAMER WEEKLY HOUR TARGETS (admin/manager; RLS enforces) ----
+// ---- CARD SHOWS (leads/managers/admin; RLS enforces) ----
+export async function saveCardShow(input) {
+  if (!input.name || !String(input.name).trim()) throw new Error('Show name is required')
+  if (!input.startDate) throw new Error('Start date is required')
+  const row = {
+    name: String(input.name).trim(),
+    location: input.location ? String(input.location).trim() : null,
+    start_date: input.startDate,
+    end_date: input.endDate || null,
+    days: Number(input.days) || 1,
+    operating_hours: Number(input.operatingHours) || 0,
+    notes: input.notes ? String(input.notes).trim() : null,
+  }
+  if (input.id) {
+    const { error } = await supabase.from('card_shows').update(row).eq('id', input.id)
+    if (error) throw error
+    return input.id
+  }
+  const { data, error } = await supabase.from('card_shows').insert(row).select('id').single()
+  if (error) throw error
+  return data.id
+}
+
+export async function deleteCardShow(id) {
+  if (!id) throw new Error('No show')
+  const { error } = await supabase.from('card_shows').delete().eq('id', id)
+  if (error) throw error
+}
+
+// One contribution per attending person/department.
+export async function saveShowEntry(showId, input) {
+  if (!showId) throw new Error('No show')
+  if (!input.profileId) throw new Error('Pick a person')
+  const row = {
+    show_id: showId, profile_id: input.profileId,
+    department: input.department || null,
+    hours: Number(input.hours) || 0, overnight: !!input.overnight,
+    sales_cash: money2(Number(input.salesCash) || 0),
+    sales_card: money2(Number(input.salesCard) || 0),
+    sales_transfer: money2(Number(input.salesTransfer) || 0),
+    profit: money2(Number(input.profit) || 0),
+  }
+  if (input.id) {
+    const { error } = await supabase.from('card_show_entries').update(row).eq('id', input.id)
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('card_show_entries').upsert(row, { onConflict: 'show_id,profile_id' })
+    if (error) throw error
+  }
+}
+
+export async function deleteShowEntry(id) {
+  if (!id) throw new Error('No entry')
+  const { error } = await supabase.from('card_show_entries').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function saveShowCost(showId, { label, amount, profileId }) {
+  if (!showId) throw new Error('No show')
+  if (!label || !String(label).trim()) throw new Error('Cost needs a label')
+  const { error } = await supabase.from('card_show_costs')
+    .insert({ show_id: showId, profile_id: profileId || null, label: String(label).trim(), amount: money2(Number(amount) || 0) })
+  if (error) throw error
+}
+
+export async function deleteShowCost(id) {
+  if (!id) throw new Error('No cost')
+  const { error } = await supabase.from('card_show_costs').delete().eq('id', id)
+  if (error) throw error
+}
+
 export async function setStreamerTarget(streamerId, weeklyHours) {
   if (!streamerId) throw new Error('No streamer')
   const h = Number(weeklyHours)

@@ -26,6 +26,9 @@ const NAV = [
   // Stream
   { id: 'record',     label: 'Record stream', group: 'Stream',     needs: (c) => c.canRecordStream },
   { id: 'past',       label: 'Past streams',  group: 'Stream',     needs: (c) => c.canRecordStream },
+  // Shows — off-site card shows (leads + management)
+  { id: 'recordshow', label: 'Record show',    group: 'Shows',      needs: (c) => c.seesAnalytics },
+  { id: 'pastshows',  label: 'Previous shows', group: 'Shows',      needs: (c) => c.seesAnalytics },
   // Inventory — parent tab holding the full stock lifecycle + the release calendar
   { id: 'inventory',  label: 'Inventory',     group: 'Inventory',  needs: (c) => c.seesInventory },
   { id: 'releaseday', label: 'Release day',   group: 'Inventory',  needs: (c) => c.seesAllDepartments },
@@ -44,7 +47,7 @@ const NAV = [
   // Admin
   { id: 'admin',      label: 'Admin',         group: 'Admin',      needs: (c) => c.isAdmin },
 ]
-const GROUP_ORDER = ['Analytics', 'My Stock', 'Stream', 'Inventory', 'Operations', 'Admin']
+const GROUP_ORDER = ['Analytics', 'My Stock', 'Stream', 'Shows', 'Inventory', 'Operations', 'Admin']
 // Per-screen descriptions for the V1-style section-header card (shown once in
 // the shell so every screen gets the same chrome).
 // V1's exact screen blurbs (ported verbatim), plus the V2-only screens.
@@ -72,6 +75,8 @@ const HINTS = {
   operations: 'Rota’d hours vs actual streamed hours (Mania TCG).',
   releaseday: 'Upcoming Topps releases with a live GMT countdown — click any day for detail.',
   hours: 'Group-wide streamed hours — who, how long and where, vs weekly targets.',
+  recordshow: 'Log a new off-site card show.',
+  pastshows: 'Previous shows — time, sales and profit at a glance.',
 }
 const ROLE_LABEL = { admin: 'Admin', manager: 'Manager', lead: 'Lead', warehouse: 'Warehouse', streamer: 'Streamer' }
 const DBROLE_LABEL = { admin: 'Admin', manager: 'Manager', channel_lead: 'Lead', warehouse: 'Warehouse', breaker: 'Streamer' }
