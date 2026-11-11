@@ -143,6 +143,31 @@ function normTarget(r) {
   return { streamerId: r.streamer_id, weeklyHours: num(r.weekly_hours) }
 }
 
+// Release calendar row (V2-only). Dates/times kept as raw strings.
+function normRelease(r) {
+  return {
+    id: r.id, product: r.product ?? '', sport: r.sport ?? null,
+    releaseDate: r.release_date ?? null, releaseTimeUtc: r.release_time_utc ?? null,
+    timeConfirmed: !!r.time_confirmed, isBowman: !!r.is_bowman,
+    status: r.status ?? 'scheduled', source: r.source ?? 'manual', sourceUrl: r.source_url ?? null,
+    invoiceRef: r.invoice_ref ?? null,
+    invoiceAmount: r.invoice_amount == null ? null : num(r.invoice_amount),
+    invoiceDue: r.invoice_due ?? null, invoiceStatus: r.invoice_status ?? 'none',
+    notes: r.notes ?? null,
+  }
+}
+
+// Unified stock activity row (v_stock_activity): who did what, when.
+function normActivity(r) {
+  return {
+    when: r.created_at ?? null, actor: r.actor_name ?? null, kind: r.kind ?? null,
+    product: r.product ?? null,
+    qty: r.qty == null ? null : num(r.qty),
+    cost: r.cost == null ? null : num(r.cost),
+    detail: r.detail ?? null,
+  }
+}
+
 // Card show (shared off-site event) + per-department entries + itemised costs.
 function normCardShow(r) {
   return {
