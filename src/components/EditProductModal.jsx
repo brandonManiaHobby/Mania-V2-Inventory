@@ -1,6 +1,12 @@
 import { useState, useMemo, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { gbp, gbp0, int, useSource, updateProduct, addStock, setWarehouseQty, editWaveCost, deleteWave, mergeWaves, waveImpactSummary } from '../data'
+import { gbp, gbp0, int, useSource, updateProduct, addStock, setWarehouseQty, editWaveCost, deleteWave, mergeWaves, setWaveVat, waveImpactSummary } from '../data'
+
+// VAT label helper — resolves a wave's effective treatment (override or inherit).
+const VAT_LABEL = { standard: 'Standard · VAT', second_hand: '2nd-hand · no VAT' }
+function waveVatEffective(wave, product) {
+  return wave.vatTreatment || (product.vatTreatment === 'second_hand' ? 'second_hand' : 'standard')
+}
 
 // ============================================================
 // EDIT PRODUCT — product attributes + folded, hardened wave administration.
@@ -220,6 +226,20 @@ function WaveRow({ w, product, isAdmin, onDone, setErr }) {
   const [mode, setMode] = useState('forward')
   const [impact, setImpact] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [vat, setVat] = useState(w.vatTreatment || '')   // '' = inherit the product
+  const [vatBusy, setVatBusy] = useState(false)
+  const [vatMsg, setVatMsg] = useState(null)
+
+  const effVat = waveVatEffective(w, product)
+  const hasOverride = !!w.vatTreatment
+
+  const saveVat = async () => {
+    setErr(null); setVatMsg(null); setVatBusy(true)
+    try {
+      await setWaveVat({ stockItemId: product.id, waveNo: w.waveNo, treatment: vat || null })
+      setVatMsg('VAT saved ✓'); await onDone()
+    } catch (e) { setErr(e.message) } finally { setVatBusy(false) }
+  }
 
   const oldTotal = Number(w.totalCost || 0)
   const oldUnit = Number(w.unitCost || 0)
@@ -268,7 +288,7 @@ function WaveRow({ w, product, isAdmin, onDone, setErr }) {
   return (
     <>
       <tr style={{ borderTop: '1px solid #f3f3f3' }}>
-        <td style={{ textAlign: 'left' }}>W{w.waveNo}</td>
+        <td style={{ textAlign: 'left' }}>W{w.waveNo}{hasOverride && <span title={`VAT override: ${VAT_LABEL[effVat]}`} style={{ marginLeft: 5, fontSize: 9, fontWeight: 700, color: effVat === 'second_hand' ? '#1a7f37' : '#b8700a', border: '1px solid currentColor', borderRadius: 4, padding: '1px 3px', verticalAlign: 'middle' }}>{effVat === 'second_hand' ? 'NO VAT' : 'VAT'}</span>}</td>
         <td style={td}>{int(w.qty)}</td>
         <td style={td}>{gbp(w.unitCost)}</td>
         <td style={td}>{gbp0(w.totalCost)}</td>
@@ -317,6 +337,23 @@ function WaveRow({ w, product, isAdmin, onDone, setErr }) {
             <button onClick={save} disabled={busy} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#1a7f37', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>{busy ? 'Saving…' : 'Apply change'}</button>
             <button onClick={del} disabled={busy} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e0b4b4', background: '#fff', color: '#c82828', cursor: 'pointer' }}>Delete wave</button>
           </div>
+
+          {/* ---- per-wave VAT override (independent of the cost change) ---- */}
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #eee' }}>
+            <div style={{ fontSize: 12, color: '#999', marginBottom: 6 }}>VAT treatment for this wave <span style={{ color: '#bbb' }}>· overrides the product default for where this stock was sourced</span></div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end' }}>
+              <label style={{ fontSize: 12 }}>This wave<br />
+                <select style={{ ...field, marginTop: 3, width: 210 }} value={vat} onChange={(e) => setVat(e.target.value)}>
+                  <option value="">Inherit product ({VAT_LABEL[product.vatTreatment === 'second_hand' ? 'second_hand' : 'standard']})</option>
+                  <option value="standard">Standard · VAT reclaimable</option>
+                  <option value="second_hand">Second-hand · VAT-free</option>
+                </select>
+              </label>
+              <button onClick={saveVat} disabled={vatBusy || (vat || '') === (w.vatTreatment || '')} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#2a52be', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: (vatBusy || (vat || '') === (w.vatTreatment || '')) ? 0.5 : 1 }}>{vatBusy ? 'Saving…' : 'Save wave VAT'}</button>
+              {vatMsg && <span style={{ color: '#1a7f37', fontWeight: 600, fontSize: 13 }}>{vatMsg}</span>}
+            </div>
+            <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>Drives the input-VAT reclaim on the VAT report for this wave’s purchase cost. Currently in effect: <strong>{VAT_LABEL[effVat]}</strong>.</div>
+          </div>
         </td></tr>
       )}
     </>
@@ -348,10 +385,17 @@ function AddWave({ productName, type, onDone, setErr }) {
   )
 }
 
-// ---- merge waves: blend the warehouse on-hand into one weighted-average wave ----
+// ---- merge waves & average cost ----
+// Blends the warehouse on-hand of the chosen waves — and, optionally, NEW stock
+// coming in — into ONE wave at the weighted-average cost. Already-sold units and
+// stock on streamers' shelves keep their original cost, so only FUTURE stock runs
+// at the blended rate. A confirm step guards the (irreversible) re-cost.
 function MergeWaves({ product, holdings, onDone, setErr }) {
   const [open, setOpen] = useState(false)
   const [sel, setSel] = useState([])
+  const [incQty, setIncQty] = useState('')      // NEW stock coming in (optional)
+  const [incCost, setIncCost] = useState('')
+  const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
 
   // Warehouse (holder null) on-hand per wave — only these blend.
@@ -368,19 +412,40 @@ function MergeWaves({ product, holdings, onDone, setErr }) {
       .sort((a, b) => a.waveNo - b.waveNo)
   }, [holdings, product.id])
 
-  const chosen = rows.filter((r) => sel.includes(r.waveNo))
-  const totalQty = chosen.reduce((a, r) => a + r.qty, 0)
-  const blended = totalQty > 0 ? chosen.reduce((a, r) => a + r.qty * r.unitCost, 0) / totalQty : 0
+  const incN = Math.max(0, Number(incQty) || 0)
+  const incC = Math.max(0, Number(incCost) || 0)
+  const incOn = incN > 0
+  // Incoming stock blends into the average of EVERYTHING on hand, so when it's
+  // present every on-hand wave is folded in (selection is locked to all).
+  const chosen = incOn ? rows : rows.filter((r) => sel.includes(r.waveNo))
+
+  const existQty = chosen.reduce((a, r) => a + r.qty, 0)
+  const existVal = chosen.reduce((a, r) => a + r.qty * r.unitCost, 0)
+  const totalQty = existQty + incN
+  const blended = totalQty > 0 ? (existVal + incN * incC) / totalQty : 0
   const toggle = (w) => setSel(sel.includes(w) ? sel.filter((x) => x !== w) : [...sel, w])
+
+  // Enough to merge: 2+ existing on-hand waves, OR incoming stock plus 1+ on-hand wave.
+  const canRun = incOn ? rows.length >= 1 : chosen.length >= 2
 
   const run = async () => {
     setErr(null); setBusy(true)
     try {
-      const all = chosen.length === rows.length
-      await mergeWaves({ stockItemId: product.id, waveNos: all ? null : chosen.map((r) => r.waveNo) })
-      setOpen(false); await onDone()
-    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+      if (incOn) {
+        // Bring the new stock in first (creates/tops a wave), then blend ALL
+        // on-hand — existing + the just-added incoming — into one average.
+        await addStock({ product: product.product, type: product.type, cost: incC, qty: incN })
+        await mergeWaves({ stockItemId: product.id, waveNos: null })
+      } else {
+        const all = chosen.length === rows.length
+        await mergeWaves({ stockItemId: product.id, waveNos: all ? null : chosen.map((r) => r.waveNo) })
+      }
+      setOpen(false); setConfirming(false); setIncQty(''); setIncCost('')
+      await onDone()
+    } catch (e) { setErr(e.message); setConfirming(false) } finally { setBusy(false) }
   }
+
+  const close = () => { setOpen(false); setConfirming(false) }
 
   if (rows.length < 2) return null   // need 2+ waves with warehouse stock to merge
 
@@ -388,32 +453,67 @@ function MergeWaves({ product, holdings, onDone, setErr }) {
     return (
       <button onClick={() => { setSel(rows.map((r) => r.waveNo)); setOpen(true) }}
         style={{ marginTop: 10, marginLeft: 8, padding: '7px 14px', borderRadius: 8, border: '1px dashed #bbb', background: '#faf9f7', cursor: 'pointer', fontWeight: 600 }}>
-        ⇄ Merge waves
+        ⇄ Merge &amp; average cost
       </button>
     )
   }
 
+  const field = { padding: '6px 9px', borderRadius: 8, border: '1px solid #ddd', font: 'inherit', width: 100 }
+
   return (
     <div style={{ marginTop: 10, padding: 12, border: '1px dashed #bbb', borderRadius: 8, background: '#faf9f7' }}>
-      <div style={{ fontWeight: 700, marginBottom: 2 }}>Merge waves</div>
-      <div style={{ fontSize: 11, color: '#999', marginBottom: 8 }}>Blends the on-hand warehouse stock to one average cost. Already-sold units (and stock on streamers’ shelves) keep their original cost.</div>
+      <div style={{ fontWeight: 700, marginBottom: 2 }}>Merge &amp; average cost</div>
+      <div style={{ fontSize: 11, color: '#999', marginBottom: 8 }}>Blends on-hand warehouse stock (and any new stock coming in) to one average cost. Already-sold units and stock on streamers’ shelves keep their original cost — only future stock runs at the blended rate.</div>
+
+      {/* on-hand waves */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
         {rows.map((r) => (
-          <label key={r.waveNo} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-            <input type="checkbox" checked={sel.includes(r.waveNo)} onChange={() => toggle(r.waveNo)} />
+          <label key={r.waveNo} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, opacity: incOn ? 0.75 : 1 }}>
+            <input type="checkbox" checked={incOn ? true : sel.includes(r.waveNo)} disabled={incOn || confirming} onChange={() => toggle(r.waveNo)} />
             <span style={{ fontWeight: 600 }}>W{r.waveNo}</span>
             <span style={{ color: '#777' }}>{int(r.qty)} on hand @ {gbp(r.unitCost)}/unit</span>
           </label>
         ))}
       </div>
-      <div style={{ fontSize: 13, marginBottom: 10 }}>Result: <strong>{int(totalQty)} units</strong> @ <strong>{gbp(blended)}/unit</strong></div>
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button onClick={run} disabled={busy || chosen.length < 2}
-          style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#1a7f37', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: (busy || chosen.length < 2) ? 0.6 : 1 }}>
-          {busy ? 'Merging…' : 'Merge selected'}
-        </button>
-        <button onClick={() => setOpen(false)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #ddd', background: '#fff', cursor: 'pointer' }}>Cancel</button>
+
+      {/* optional incoming stock */}
+      <div style={{ borderTop: '1px solid #eee', paddingTop: 8, marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: '#777', marginBottom: 4 }}>New stock coming in <span style={{ color: '#bbb' }}>· optional — folds into the average</span></div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end' }}>
+          <label style={{ fontSize: 12 }}>Units in<br /><input style={{ ...field, marginTop: 3 }} type="number" min="0" value={incQty} onChange={(e) => setIncQty(e.target.value)} disabled={confirming} /></label>
+          <label style={{ fontSize: 12 }}>£/unit<br /><input style={{ ...field, marginTop: 3 }} type="number" step="0.01" min="0" value={incCost} onChange={(e) => setIncCost(e.target.value)} disabled={confirming} /></label>
+          {incOn && <div style={{ fontSize: 11, color: '#b8700a', alignSelf: 'center', maxWidth: 220 }}>With incoming stock, all on-hand waves blend together.</div>}
+        </div>
       </div>
+
+      <div style={{ fontSize: 13, marginBottom: 10 }}>
+        Result: <strong>{int(totalQty)} units</strong> @ <strong>{gbp(blended)}/unit</strong>
+        {incOn && <span style={{ color: '#777' }}> &nbsp;(incl. {int(incN)} coming in @ {gbp(incC)})</span>}
+      </div>
+
+      {!confirming ? (
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={() => setConfirming(true)} disabled={!canRun}
+            style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#1a7f37', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: !canRun ? 0.5 : 1 }}>
+            Merge &amp; average cost
+          </button>
+          <button onClick={close} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #ddd', background: '#fff', cursor: 'pointer' }}>Cancel</button>
+        </div>
+      ) : (
+        <div style={{ padding: 10, border: '1px solid #e0b4b4', borderRadius: 8, background: '#fdf6f6' }}>
+          <div style={{ fontWeight: 700, color: '#c0392b', fontSize: 13 }}>Confirm merge</div>
+          <div style={{ fontSize: 12, color: '#555', margin: '4px 0 10px' }}>
+            This re-costs {int(totalQty)} on-hand unit{totalQty === 1 ? '' : 's'} to <strong>{gbp(blended)}/unit</strong> in a single blended wave{incOn ? `, after bringing in ${int(incN)} new unit${incN === 1 ? '' : 's'}` : ''}. Sold and streamer-held stock is untouched. This can’t be undone.
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={run} disabled={busy}
+              style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#c0392b', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+              {busy ? 'Merging…' : 'Yes, merge & average'}
+            </button>
+            <button onClick={() => setConfirming(false)} disabled={busy} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #ddd', background: '#fff', cursor: 'pointer' }}>Back</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

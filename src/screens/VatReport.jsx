@@ -19,6 +19,9 @@ export default function VatReport({ scoped, embedded }) {
     const inp = {}  // period -> input vat
 
     const vatOf = (id) => scoped.stockItems.find((s) => s.id === id)?.vatTreatment === 'second_hand' ? 'second_hand' : 'standard'
+    // A wave can override the product's VAT treatment (sourced differently).
+    // null override = inherit the product. Drives the input-VAT reclaim.
+    const waveVatOf = (w) => w.vatTreatment || vatOf(w.stockItemId)
     const bump = (map, key, v) => { if (key) map[key] = (map[key] || 0) + v }
     const pkey = (ymd) => period === 'month' ? monthKey(ymd) : (ymd || '').slice(0, period === 'day' ? 10 : 7)
 
@@ -36,9 +39,11 @@ export default function VatReport({ scoped, embedded }) {
       const m = computeMoney({ gross: d.revenue, net: d.revenue, vatTreatment: 'standard' })
       bump(out, pkey(d.soldOn), m.vatOwed)
     }
-    // Input VAT — purchases (waves), by wave created date
+    // Input VAT — purchases (waves), by wave created date. Uses the wave's
+    // effective treatment (its own override, else the product's), so a wave
+    // sourced VAT-free is excluded even when the product is standard, and vice versa.
     for (const w of scoped.waves) {
-      if (vatOf(w.stockItemId) === 'second_hand') continue
+      if (waveVatOf(w) === 'second_hand') continue
       const inputVat = vatOfInclusive(w.totalCost, 'standard') // inclusive VAT in the cost
       bump(inp, pkey(w.createdAt), inputVat)
     }

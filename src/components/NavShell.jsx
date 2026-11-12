@@ -29,9 +29,11 @@ const NAV = [
   // Shows — off-site card shows (leads + management)
   { id: 'recordshow', label: 'Record show',    group: 'Shows',      needs: (c) => c.seesAnalytics },
   { id: 'pastshows',  label: 'Previous shows', group: 'Shows',      needs: (c) => c.seesAnalytics },
-  // Inventory — parent tab holding the full stock lifecycle + the release calendar
+  // Releases — standalone tab, visible to EVERYONE. Schedule + product briefings.
+  { id: 'releaseday', label: 'Release schedule', group: 'Releases', needs: () => true },
+  { id: 'briefings',  label: 'Product briefing',  group: 'Releases', needs: () => true },
+  // Inventory — parent tab holding the full stock lifecycle
   { id: 'inventory',  label: 'Inventory',     group: 'Inventory',  needs: (c) => c.seesInventory },
-  { id: 'releaseday', label: 'Release day',   group: 'Inventory',  needs: (c) => c.seesAllDepartments },
   { id: 'movestock',  label: 'Move stock',    group: 'Inventory',  needs: (c) => c.canMoveStock },
   { id: 'intake',     label: 'Add stock',     group: 'Inventory',  needs: (c) => c.canMoveStock },
   { id: 'consumables',label: 'Consumables',   group: 'Inventory',  needs: (c) => c.seesInventory },
@@ -47,7 +49,7 @@ const NAV = [
   // Admin
   { id: 'admin',      label: 'Admin',         group: 'Admin',      needs: (c) => c.isAdmin },
 ]
-const GROUP_ORDER = ['Analytics', 'My Stock', 'Stream', 'Shows', 'Inventory', 'Operations', 'Admin']
+const GROUP_ORDER = ['Analytics', 'My Stock', 'Stream', 'Shows', 'Releases', 'Inventory', 'Operations', 'Admin']
 // Per-screen descriptions for the V1-style section-header card (shown once in
 // the shell so every screen gets the same chrome).
 // V1's exact screen blurbs (ported verbatim), plus the V2-only screens.
@@ -74,6 +76,7 @@ const HINTS = {
   admin: 'Approve, edit and assign people across departments.',
   operations: 'Rota’d hours vs actual streamed hours (Mania TCG).',
   releaseday: 'Upcoming Topps releases with a live GMT countdown — click any day for detail.',
+  briefings: 'Product briefings for upcoming releases — configuration, hit rates and key dates.',
   hours: 'Group-wide streamed hours — who, how long and where, vs weekly targets.',
   recordshow: 'Log a new off-site card show.',
   pastshows: 'Previous shows — time, sales and profit at a glance.',

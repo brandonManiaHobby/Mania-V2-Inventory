@@ -411,6 +411,20 @@ export async function mergeWaves({ stockItemId, waveNos }) {
   if (error) throw error
 }
 
+// SET a WAVE's VAT treatment (admin/manager). treatment: 'standard' |
+// 'second_hand' | null (inherit the product). Drives input-VAT reclaim per
+// wave — used when a wave was sourced on different VAT terms to the product.
+export async function setWaveVat({ stockItemId, waveNo, treatment }) {
+  if (!stockItemId) throw new Error('No product')
+  if (waveNo == null) throw new Error('No wave')
+  const t = treatment || null
+  if (t != null && !['standard', 'second_hand'].includes(t)) throw new Error('Invalid VAT treatment')
+  const { error } = await supabase.rpc('set_wave_vat', {
+    p_stock_item_id: stockItemId, p_wave_no: waveNo, p_treatment: t,
+  })
+  if (error) throw error
+}
+
 // Preview the impact of a cost change on past streams (before committing).
 export async function waveImpactSummary(stockItemId, waveNo, newUnitCost) {
   const { data, error } = await supabase.rpc('wave_edit_impact_summary', {
@@ -521,6 +535,37 @@ export async function saveRelease(input) {
 export async function deleteRelease(id) {
   if (!id) throw new Error('No release')
   const { error } = await supabase.from('release_calendar').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ---- PRODUCT BRIEFINGS (admin/manager write; everyone reads — RLS enforces) ----
+// Insert when no id, update when id present. The email scraper inserts rows the
+// same way (source='email'); this is the manual/edit path.
+export async function saveBriefing(input) {
+  if (!input.product || !String(input.product).trim()) throw new Error('Product is required')
+  const row = {
+    product: String(input.product).trim(),
+    sport: input.sport ? String(input.sport).trim() : null,
+    release_date: input.releaseDate || null,
+    summary: input.summary ? String(input.summary).trim() : null,
+    configuration: input.configuration ? String(input.configuration).trim() : null,
+    status: input.status || 'new',
+    source: input.source || 'manual',
+    source_ref: input.sourceRef ? String(input.sourceRef).trim() : null,
+    notes: input.notes ? String(input.notes).trim() : null,
+  }
+  if (input.id) {
+    const { error } = await supabase.from('product_briefings').update(row).eq('id', input.id)
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('product_briefings').insert(row)
+    if (error) throw error
+  }
+}
+
+export async function deleteBriefing(id) {
+  if (!id) throw new Error('No briefing')
+  const { error } = await supabase.from('product_briefings').delete().eq('id', id)
   if (error) throw error
 }
 

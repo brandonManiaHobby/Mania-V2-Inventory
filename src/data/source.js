@@ -47,6 +47,9 @@ function normWave(r) {
     totalCost: num(r.total_cost),       // full precision
     revenueRecovered: num(r.revenue_recovered),
     paidOff: !!r.paid_off,
+    // Per-wave VAT override: null = inherit the product's treatment,
+    // else 'standard' | 'second_hand' (sourcing differs by wave).
+    vatTreatment: r.vat_treatment === 'standard' || r.vat_treatment === 'second_hand' ? r.vat_treatment : null,
     createdAt: r.created_at ?? null,
   }
 }
@@ -189,6 +192,22 @@ function normShowCost(r) {
   return { id: r.id, showId: r.show_id, profileId: r.profile_id ?? null, label: r.label ?? '', amount: num(r.amount) }
 }
 
+// Product briefing (V2-only). Config/summary kept as free text; provenance
+// fields (source/sourceRef/receivedAt) carry where an emailed briefing came from.
+function normBriefing(r) {
+  return {
+    id: r.id, product: r.product ?? '', sport: r.sport ?? null,
+    releaseDate: r.release_date ?? null,
+    summary: r.summary ?? null, configuration: r.configuration ?? null,
+    status: r.status ?? 'new',                 // 'new' | 'reviewed'
+    source: r.source ?? 'manual',              // 'manual' | 'email'
+    sourceRef: r.source_ref ?? null,           // email subject/from for provenance
+    receivedAt: r.received_at ?? null,
+    notes: r.notes ?? null,
+    createdBy: r.created_by ?? null, createdAt: r.created_at ?? null,
+  }
+}
+
 // loadSource() fetches everything once and returns the single shared object.
 // Screens read from this object; they never call supabase themselves.
 
@@ -210,7 +229,7 @@ async function fetchAll(table, select = '*') {
 }
 
 export async function loadSource() {
-  const [items, waves, holdings, streams, lines, distro, profiles, releases, targets, activity, cardShows, showEntries, showCosts] = await Promise.all([
+  const [items, waves, holdings, streams, lines, distro, profiles, releases, targets, activity, cardShows, showEntries, showCosts, briefings] = await Promise.all([
     fetchAll('stock_items'),
     fetchAll('stock_waves'),
     fetchAll('stock_holdings'),
@@ -226,6 +245,7 @@ export async function loadSource() {
     fetchAll('card_shows').catch(() => ({ data: [], error: null })),
     fetchAll('card_show_entries').catch(() => ({ data: [], error: null })),
     fetchAll('card_show_costs').catch(() => ({ data: [], error: null })),
+    fetchAll('product_briefings').catch(() => ({ data: [], error: null })),
   ])
 
   // Surface exactly which relation failed (core = fatal, rest = tolerated).
@@ -234,6 +254,7 @@ export async function loadSource() {
     v_streams_scoped: streams, stream_lines: lines, distro_sales: distro, profiles,
     release_calendar: releases, streamer_targets: targets, v_stock_activity: activity,
     card_shows: cardShows, card_show_entries: showEntries, card_show_costs: showCosts,
+    product_briefings: briefings,
   }
   const problems = Object.entries(named).filter(([, r]) => r && r.error)
   if (problems.length) console.error('[loadSource] fetch errors:', problems.map(([t, r]) => `${t}: ${r.error?.message || r.error?.code || r.error}`))
@@ -258,5 +279,6 @@ export async function loadSource() {
     cardShows: ((cardShows && cardShows.data) || []).map(normCardShow),
     cardShowEntries: ((showEntries && showEntries.data) || []).map(normShowEntry),
     cardShowCosts: ((showCosts && showCosts.data) || []).map(normShowCost),
+    briefings: ((briefings && briefings.data) || []).map(normBriefing),
   }
 }

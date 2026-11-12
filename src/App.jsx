@@ -3,7 +3,7 @@ import { useAuth, Login } from './auth'
 import { useSource, int } from './data'
 import { scopeSource, capabilities } from './scoping'
 import NavShell, { NAV } from './components/NavShell'
-import { Dashboard, RecordStream, Streamers, Products, MyStock, Inventory, ToppsSurvey, MoveStock, Insights, PastStreams, Teams, Finance, Export, Distro, StockIntake, Admin, Consumables, StreamLogs, ReportBuilder, Operations, ReleaseDay, Hours, RecordShow, PastShows } from './screens'
+import { Dashboard, RecordStream, Streamers, Products, MyStock, Inventory, ToppsSurvey, MoveStock, Insights, PastStreams, Teams, Finance, Export, Distro, StockIntake, Admin, Consumables, StreamLogs, ReportBuilder, Operations, ReleaseDay, Briefings, Hours, RecordShow, PastShows } from './screens'
 
 // ============================================================
 // STAGE 4 — auth + nav shell.
@@ -81,6 +81,8 @@ export default function App() {
         <Teams scoped={scoped} />
       ) : current === 'releaseday' ? (
         <ReleaseDay scoped={scoped} />
+      ) : current === 'briefings' ? (
+        <Briefings scoped={scoped} />
       ) : current === 'hours' ? (
         <Hours scoped={scoped} />
       ) : current === 'recordshow' ? (
