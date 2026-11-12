@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { computeStream, sumMoney } from '../money'
-import { gbp, gbp0, int, displayDate, shortName, toDateKey, parseLocalDate } from '../data'
+import { gbp, gbp0, int, displayDate, shortName, toDateKey, parseLocalDate, showHoursFor } from '../data'
 import StatCard from './StatCard'
 import BarsChart from './BarsChart'
 
@@ -71,6 +71,7 @@ export default function StreamerInspectModal({ person, scoped, onClose }) {
       for (const l of lines) { if (l.lineKind !== 'giveaway') { units += Number(l.qty) || 0; if (l.product) products.add(l.product) } }
     }
     const t = sumMoney(ladders)
+    const sh = showHoursFor(scoped, person.id, range.from, range.to)   // card-show hours in window
     const bars = Object.keys(byDay).filter((d) => byDay[d].total > 0).sort().map((d) => ({
       label: displayDate(d, { day: '2-digit', month: 'short' }),
       value: byDay[d].total,
@@ -81,6 +82,7 @@ export default function StreamerInspectModal({ person, scoped, onClose }) {
       streams: streams.length, hours, units, productCount: products.size,
       products: [...products], gross: t.gross, profit: t.trueProfit,
       revPerHour: hours > 0 ? t.gross / hours : null, bars,
+      showHours: sh.hours, showCount: sh.count, totalHours: hours + sh.hours,
     }
   }, [scoped, person.id, range])
 
@@ -114,6 +116,8 @@ export default function StreamerInspectModal({ person, scoped, onClose }) {
           <StatCard label="Revenue generated" value={gbp(perf.gross)} accent="#111" />
           <StatCard label="Streams" value={int(perf.streams)} />
           <StatCard label="Hours streamed" value={perf.hours > 0 ? perf.hours.toFixed(1) : '—'} />
+          <StatCard label="Card show hours" value={perf.showHours > 0 ? perf.showHours.toFixed(1) : '—'} sub={perf.showCount > 0 ? `${perf.showCount} show${perf.showCount === 1 ? '' : 's'}` : undefined} />
+          <StatCard label="Total hours" value={perf.totalHours > 0 ? perf.totalHours.toFixed(1) : '—'} accent="#1a7f37" />
           <StatCard label="Revenue / hour" value={perf.revPerHour != null ? gbp0(perf.revPerHour) : '—'} />
           <StatCard label="Products used" value={int(perf.units)} sub={`${perf.productCount} different`} />
           <StatCard label="Profit" value={gbp(perf.profit)} accent="#1a7f37" />

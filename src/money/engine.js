@@ -148,6 +148,42 @@ export function sumMoney(ladders = []) {
 // of net = line's gross share × net. Then VAT per line by its treatment.
 // This keeps mixed-VAT streams correct and still ties to one entered net.
 // ============================================================
+// ------------------------------------------------------------
+// lineWeights(lines, vatOf) -> per-line apportionment fractions.
+//
+// A stream's money (its net, or its gross) must be split across product lines
+// to compute per-line VAT by treatment and per-line recovery. The split WEIGHT
+// per line is:
+//   - the entered "sold for" (lineTotal) when present (> 0), else
+//   - the line's STOCK COST  (what the UI calls "weighted by what it cost") —
+//     so a line with "sold for" left BLANK still carries its share. Without this
+//     a blank line contributed a £0 share, which zeroed output VAT and overstated
+//     profit by the whole VAT amount.
+// Giveaways earn NO revenue (weight 0) but keep their cost in COGS.
+// Returns [{ line, frac, cost, treatment }], fracs summing to 1 across revenue
+// lines (0 across giveaways). Multiply frac by net (for VAT/margin) or by gross.
+// ------------------------------------------------------------
+export function lineWeights(lines = [], vatOf = () => 'standard') {
+  const live = lines.filter((l) => !l.brokered)
+  const costOf = (l) => (Number(l.qty) || 0) * (Number(l.unitCost) || 0)
+  const isGive = (l) => l.lineKind === 'giveaway'
+  const weightOf = (l) => {
+    if (isGive(l)) return 0                         // giveaways: no revenue
+    const lt = Number(l.lineTotal) || 0
+    return lt > 0 ? lt : costOf(l)                  // sold-for, else stock cost
+  }
+  const total = live.reduce((a, l) => a + weightOf(l), 0)
+  const revLines = live.filter((l) => !isGive(l))
+  return live.map((l) => ({
+    line: l,
+    frac: total > 0
+      ? weightOf(l) / total
+      : (isGive(l) ? 0 : (revLines.length ? 1 / revLines.length : 0)),  // last resort: equal split of revenue lines
+    cost: costOf(l),
+    treatment: vatOf(l.stockItemId),
+  }))
+}
+
 export function computeStream(stream, lines = [], vatOf = () => 'standard') {
   const gross = Number(stream.gross ?? stream.totalSales) || 0
   const net = (stream.net === null || stream.net === undefined) ? gross : (Number(stream.net) || 0)
@@ -159,24 +195,21 @@ export function computeStream(stream, lines = [], vatOf = () => 'standard') {
   const promo = Number(stream.promo) || 0
 
   const live = lines.filter((l) => !l.brokered)
-  const grossOfLines = live.reduce((a, l) => a + (Number(l.lineTotal) || 0), 0) || gross || 1
   const cost = live.reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.unitCost) || 0), 0)
 
   // Per-line VAT AND per-line cost ex-VAT: each line uses ITS OWN product's
-  // treatment. Second-hand lines contribute no output VAT and their cost is
-  // NOT VAT-stripped (there was no VAT in it). This matches computeMoney's
-  // single-sale behaviour exactly — the two paths must agree.
+  // treatment. The net is apportioned by lineWeights (sold-for, else stock cost)
+  // so blank "sold for" lines still carry their share — output VAT no longer
+  // collapses to £0 when figures aren't fully entered. Second-hand lines
+  // contribute no output VAT and their cost is NOT VAT-stripped (no VAT in it).
   let vatPortion = 0
   let costExVat = 0
-  for (const l of live) {
-    const treatment = vatOf(l.stockItemId)
-    const lineGross = Number(l.lineTotal) || 0
-    const lineNetShare = grossOfLines > 0 ? (lineGross / grossOfLines) * net : 0
-    const lineCost = (Number(l.qty) || 0) * (Number(l.unitCost) || 0)
-    if (treatment !== 'second_hand') {
+  for (const p of lineWeights(live, vatOf)) {
+    const lineNetShare = p.frac * net
+    if (p.treatment !== 'second_hand') {
       vatPortion += vatOfInclusive(lineNetShare, 'standard')
     }
-    costExVat += exVat(lineCost, treatment)  // second-hand cost passes through unstripped
+    costExVat += exVat(p.cost, p.treatment)  // second-hand cost passes through unstripped
   }
 
   const netExVat = net - vatPortion

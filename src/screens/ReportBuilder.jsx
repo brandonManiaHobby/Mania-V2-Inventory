@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { exVat, vatOfInclusive } from '../money'
-import { gbp, gbp0, int, pct, todayKey, toDateKey, parseLocalDate, displayDate, vatTreatmentOf, shortName, canonPlatform } from '../data'
+import { exVat, vatOfInclusive, lineWeights } from '../money'
+import { gbp, gbp0, int, pct, todayKey, toDateKey, parseLocalDate, displayDate, vatTreatmentOf, shortName, canonPlatform, showHoursByName } from '../data'
 
 // ============================================================
 // REPORT BUILDER (Reporting) — an infinitely drillable, composable pivot.
@@ -33,7 +33,7 @@ const METRICS = [
   { id: 'profit',  label: 'Profit',       pick: (g) => g.profit, fmt: gbp0, good: true },
   { id: 'units',   label: 'Units (usage)', pick: (g) => g.units, fmt: int },
   { id: 'streams', label: 'Streams',      pick: (g) => g.streams, fmt: int },
-  { id: 'hours',   label: 'Hours',        pick: (g) => g.hours,  fmt: (h) => (h > 0 ? h.toFixed(1) : '—') },
+  { id: 'hours',   label: 'Hours',        pick: (g) => g.hours + (g.showHours || 0),  fmt: (h) => (h > 0 ? h.toFixed(1) : '—') },
   { id: 'ppu',     label: 'Profit / unit', pick: (g) => (g.units > 0 ? g.profit / g.units : 0), fmt: gbp, good: true },
   { id: 'rph',     label: 'Rev / hour',   pick: (g) => (g.hours > 0 ? g.gross / g.hours : 0), fmt: gbp0 },
   { id: 'margin',  label: 'Margin %',     pick: (g) => (g.gross > 0 ? g.profit / g.gross : 0), fmt: pct },
@@ -158,22 +158,28 @@ export default function ReportBuilder({ scoped }) {
       if (fPlatform && (canonPlatform(s.platform) || '—') !== fPlatform) continue
       const allLive = scoped.streamLines.filter((l) => l.streamId === s.id && !l.brokered && l.lineKind !== 'giveaway')
       if (allLive.length === 0) continue
-      const grossOfLines = allLive.reduce((a, l) => a + (Number(l.lineTotal) || 0), 0) || Number(s.totalSales) || 1
       const net = (s.net === null || s.net === undefined) ? Number(s.totalSales) || 0 : Number(s.net) || 0
+      const grossBasis = Number(s.totalSales) || net
+      // Shared apportionment: blank "sold for" lines still carry their share
+      // (weighted by stock cost), so they no longer show £0 revenue / wrong profit.
+      const fracByLine = new Map(lineWeights(allLive, vatOf).map((p) => [p.line, p.frac]))
       const lines = fProduct ? allLive.filter((l) => shortName(l.product || '—') === fProduct) : allLive
       for (const l of lines) {
-        const qty = Number(l.qty) || 0, t = vatOf(l.stockItemId), lineGross = Number(l.lineTotal) || 0
-        const share = grossOfLines > 0 ? (lineGross / grossOfLines) * net : 0
-        const netExVat = share - vatOfInclusive(share, t)
+        const qty = Number(l.qty) || 0, t = vatOf(l.stockItemId)
+        const frac = fracByLine.get(l) || 0
+        const netShare = frac * net
+        const grossShare = frac * grossBasis
+        const netExVat = netShare - vatOfInclusive(netShare, t)
         const cost = qty * (Number(l.unitCost) || 0)
         const profit = netExVat - exVat(cost, t)
-        recs.push({ sid: s.id, s, l, gross: lineGross, net: share, fees: lineGross - share, profit, units: qty, cost })
+        recs.push({ sid: s.id, s, l, gross: grossShare, net: netShare, fees: grossShare - netShare, profit, units: qty, cost })
       }
     }
     return recs
   }, [scoped, from, to, fStreamer, fChannel, fPlatform, fProduct])
 
   const hoursById = useMemo(() => { const h = {}; for (const s of scoped.streams) h[s.id] = hoursOf(s); return h }, [scoped])
+  const showByName = useMemo(() => showHoursByName(scoped, from, to), [scoped, from, to])
 
   const { tree, totals, expandablePaths } = useMemo(() => {
     const sm = (sortKey && METRIC_BY_ID[sortKey]) || selectedMetrics[0] || METRICS[0]
@@ -192,11 +198,19 @@ export default function ReportBuilder({ scoped }) {
       return nodes
     }
     const tot = aggregate(records, hoursById)
-    const tr = dims.length === 0
+    let tr = dims.length === 0
       ? [{ key: 'Overall', path: '¦overall', ...tot, children: null }]
       : build(records, dims, '')
+    // Card-show hours attach cleanly only to a pure "by streamer" report (keyed
+    // by name, no nesting), so there's no double-count in deeper drills. Only the
+    // Hours metric picks them up; rev/hour stays stream-based.
+    if (dims.length === 1 && dims[0] === 'streamer') {
+      let totShow = 0
+      tr = tr.map((n) => { const sh = showByName[n.key]?.hours || 0; totShow += sh; return { ...n, showHours: sh } })
+      tot.showHours = totShow
+    }
     return { tree: tr, totals: tot, expandablePaths: paths }
-  }, [records, dims, hoursById, sortKey, selectedMetrics])
+  }, [records, dims, hoursById, sortKey, selectedMetrics, showByName])
 
   const visibleRows = useMemo(() => {
     const out = []

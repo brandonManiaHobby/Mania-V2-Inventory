@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { computeMoney, vatOfInclusive } from '../money'
+import { computeMoney, vatOfInclusive, lineWeights } from '../money'
 import { gbp, gbp0, monthKey, parseLocalDate } from '../data'
 import StatCard from '../components/StatCard'
 
@@ -25,13 +25,19 @@ export default function VatReport({ scoped, embedded }) {
     const bump = (map, key, v) => { if (key) map[key] = (map[key] || 0) + v }
     const pkey = (ymd) => period === 'month' ? monthKey(ymd) : (ymd || '').slice(0, period === 'day' ? 10 : 7)
 
-    // Output VAT — stream line sales
-    for (const l of scoped.streamLines) {
-      if (l.brokered || vatOf(l.stockItemId) === 'second_hand') continue
-      const stream = scoped.streams.find((s) => s.id === l.streamId)
-      if (!stream) continue
-      const m = computeMoney({ gross: l.lineTotal, net: l.lineTotal, vatTreatment: 'standard' })
-      bump(out, pkey(stream.streamDate), m.vatOwed)
+    // Output VAT — stream sales. Apportion the stream's GROSS across its lines by
+    // the shared weighting (sold-for, else stock cost), so lines left blank still
+    // carry their VATable share. Fully-attributed streams are unchanged.
+    const linesByStream = {}
+    for (const l of scoped.streamLines) (linesByStream[l.streamId] || (linesByStream[l.streamId] = [])).push(l)
+    for (const stream of scoped.streams) {
+      const sLines = linesByStream[stream.id]
+      if (!sLines || !sLines.length) continue
+      const basis = Number(stream.totalSales) || 0
+      for (const p of lineWeights(sLines, vatOf)) {
+        if (p.treatment === 'second_hand') continue
+        bump(out, pkey(stream.streamDate), vatOfInclusive(p.frac * basis, 'standard'))
+      }
     }
     // Output VAT — distro
     for (const d of scoped.distroSales) {

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { computeStream, computeMoney, sumMoney, projectPeriod, monthFractionElapsed } from '../money'
-import { gbp0, gbp, pct, int, monthKey, parseLocalDate, todayKey } from '../data'
+import { gbp0, gbp, pct, int, monthKey, parseLocalDate, todayKey, showHoursByPerson } from '../data'
 import MoneyToggle, { VIEW_FIELD } from '../components/MoneyToggle'
 import StatCard from '../components/StatCard'
 import MiniBars from '../components/MiniBars'
@@ -67,11 +67,19 @@ export default function Streamers({ scoped }) {
       const lines = scoped.streamLines.filter((l) => l.streamId === s.id && !l.brokered)
       const m = computeStream({ gross: s.totalSales, net: s.net, shipping: s.shipping },
         lines.map((l) => ({ qty: l.qty, unitCost: l.unitCost, lineTotal: l.lineTotal, brokered: false, stockItemId: l.stockItemId })), vatOf)
-      const r = by[s.streamerId] || (by[s.streamerId] = { id: s.streamerId, name: s.streamerName || '—', streams: [], ladders: [], shows: 0, hours: 0, peak: 0 })
+      const r = by[s.streamerId] || (by[s.streamerId] = { id: s.streamerId, name: s.streamerName || '—', streams: [], ladders: [], shows: 0, hours: 0, showHours: 0, showCount: 0, peak: 0 })
       r.streams.push(s); r.ladders.push({ ...m, month: monthKey(s.streamDate) }); r.shows += 1; r.hours += hoursOf(s)
       r.peak = Math.max(r.peak, Number(s.totalSales) || 0)
     }
-    return Object.values(by).map((r) => ({ ...r, t: sumMoney(r.ladders), revPerHour: r.hours > 0 ? sumMoney(r.ladders).gross / r.hours : 0 }))
+    // Credit card-show hours (same period) to each attendee, kept separate from
+    // streamed hours. A show-only attendee still appears, so their hours count.
+    // One shared helper does the aggregation everywhere (no drift).
+    const profById = Object.fromEntries(scoped.profiles.map((p) => [p.id, p]))
+    for (const [pid, o] of Object.entries(showHoursByPerson(scoped, effFrom, effTo))) {
+      const r = by[pid] || (by[pid] = { id: pid, name: profById[pid]?.name || '—', streams: [], ladders: [], shows: 0, hours: 0, showHours: 0, showCount: 0, peak: 0 })
+      r.showHours += o.hours; r.showCount += o.count
+    }
+    return Object.values(by).map((r) => ({ ...r, t: sumMoney(r.ladders), revPerHour: r.hours > 0 ? sumMoney(r.ladders).gross / r.hours : 0, totalHours: r.hours + (r.showHours || 0) }))
       .sort((a, b) => b.t[field.value] - a.t[field.value])
   }, [scoped, field.value, effFrom, effTo])
 
@@ -94,8 +102,8 @@ export default function Streamers({ scoped }) {
       unranked: all.filter((r) => r.shows < MIN_SHOWS).sort((a, b) => b.shows - a.shows),
       cats: [
         { key: 'Most sales', ...top(all, (r) => r.t.gross, gbp0) },
-        { key: 'Most shows', ...top(all, (r) => r.shows, (v) => String(v)) },
-        { key: 'Most hours', ...top(all, (r) => r.hours, (v) => v.toFixed(1) + 'h') },
+        { key: 'Most streams', ...top(all, (r) => r.shows, (v) => String(v)) },
+        { key: 'Most hours', ...top(all, (r) => r.totalHours, (v) => v.toFixed(1) + 'h'), note: 'stream + card-show hours' },
         { key: 'Best profit', ...top(all, (r) => r.t.trueProfit, gbp0) },
         { key: 'Best avg / show', ...top(ranked, (r) => r.shows ? r.t.gross / r.shows : 0, gbp0) },
         { key: 'Best rev / hour', ...top(ranked, (r) => r.revPerHour, gbp0) },
@@ -227,7 +235,7 @@ export default function Streamers({ scoped }) {
               <div style={{ width: 22, fontWeight: 700, color: '#bbb' }}>{rank + 1}</div>
               <div style={{ flex: '1 1 130px', minWidth: 110 }}>
                 <div style={{ fontWeight: 700 }}>{r.name}</div>
-                <div style={{ fontSize: 12, color: '#999' }}>{r.shows} shows{r.hours > 0 ? ` · ${r.hours.toFixed(1)}h · ${gbp0(r.revPerHour)}/h` : ''}</div>
+                <div style={{ fontSize: 12, color: '#999' }}>{r.shows} stream{r.shows === 1 ? '' : 's'}{r.hours > 0 ? ` · ${r.hours.toFixed(1)}h streamed` : ''}{r.showHours > 0 ? ` · ${r.showHours.toFixed(1)}h shows` : ''}{r.hours > 0 ? ` · ${gbp0(r.revPerHour)}/h` : ''}</div>
               </div>
               <div style={{ flex: '1 1 150px', minWidth: 130 }}>
                 <MiniBars max={grandMax} formatValue={gbp0} bars={[{ label: 'Gross', value: r.t.gross, colour: '#4a7fe0' }, { label: 'Net', value: r.t.net, colour: '#1a7f37' }]} />
@@ -282,7 +290,9 @@ function StreamerDeep({ r, scoped, view, field, vatOf }) {
       {/* lifetime / period snapshot */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
         <div style={tile}><div style={tileLbl}>Streams</div><div style={tileVal}>{int(r.shows)}</div></div>
-        <div style={tile}><div style={tileLbl}>Hours</div><div style={tileVal}>{r.hours > 0 ? r.hours.toFixed(1) : '—'}</div></div>
+        <div style={tile}><div style={tileLbl}>Stream hours</div><div style={tileVal}>{r.hours > 0 ? r.hours.toFixed(1) : '—'}</div></div>
+        <div style={tile}><div style={tileLbl}>Card-show hours</div><div style={tileVal}>{r.showHours > 0 ? r.showHours.toFixed(1) : '—'}</div></div>
+        <div style={tile}><div style={tileLbl}>Total hours</div><div style={{ ...tileVal, color: '#1a7f37' }}>{r.totalHours > 0 ? r.totalHours.toFixed(1) : '—'}</div></div>
         <div style={tile}><div style={tileLbl}>Peak stream</div><div style={tileVal}>{gbp0(r.peak)}</div></div>
         <div style={tile}><div style={tileLbl}>Avg / stream</div><div style={tileVal}>{gbp0(r.shows > 0 ? r.t.gross / r.shows : 0)}</div></div>
         <div style={tile}><div style={tileLbl}>Rev / hour</div><div style={tileVal}>{r.hours > 0 ? gbp0(r.revPerHour) : '—'}</div></div>

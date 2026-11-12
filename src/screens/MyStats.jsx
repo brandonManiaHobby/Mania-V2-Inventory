@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { gbp0, gbp, int, toDateKey, parseLocalDate, displayDate, shortName } from '../data'
+import { gbp0, gbp, int, toDateKey, parseLocalDate, displayDate, shortName, showHoursFor } from '../data'
 import StatCard from '../components/StatCard'
 import OverlayChart from '../components/OverlayChart'
 
@@ -57,7 +57,13 @@ export default function MyStats({ scoped }) {
       }
     }
     const productList = Object.values(prodRows).sort((a, b) => b.units - a.units)
-    return { streams: streams.length, revenue, hours, units, products: products.size, days, cumulative, productList }
+
+    // Card-show hours credited to THIS streamer in the window, broken out from
+    // streamed hours so attendees can show total hours were met. One shared
+    // helper does the aggregation everywhere (no drift).
+    const sh = showHoursFor(scoped, scoped.cap?.userId, range.from, range.to)
+
+    return { streams: streams.length, revenue, hours, units, products: products.size, days, cumulative, productList, showHours: sh.hours, showCount: sh.count, totalHours: hours + sh.hours }
   }, [scoped, range.from, range.to])
 
   return (
@@ -79,6 +85,8 @@ export default function MyStats({ scoped }) {
         <StatCard label="Revenue generated" value={gbp0(model.revenue)} />
         <StatCard label="Streams" value={int(model.streams)} />
         <StatCard label="Hours streamed" value={model.hours > 0 ? model.hours.toFixed(1) + 'h' : '—'} />
+        <StatCard label="Card show hours" value={model.showHours > 0 ? model.showHours.toFixed(1) + 'h' : '—'} sub={model.showCount > 0 ? `${model.showCount} show${model.showCount === 1 ? '' : 's'}` : undefined} />
+        <StatCard label="Total hours" value={model.totalHours > 0 ? model.totalHours.toFixed(1) + 'h' : '—'} accent="#1a7f37" />
         <StatCard label="Products used" value={int(model.units)} sub={`${model.products} different`} />
       </div>
 
