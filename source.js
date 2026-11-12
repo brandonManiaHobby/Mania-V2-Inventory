@@ -1,0 +1,284 @@
+// ============================================================
+// DATA LAYER — THE SHARED SOURCE (drift guarantees #3 and #4)
+// "One brain": loads the core dataset ONCE, up front, into a single
+// shared object. Every screen DERIVES from this — no screen runs its
+// own query or holds its own snapshot. A historic edit reloads the
+// source once → every screen re-derives identically. Screens cannot
+// disagree, by construction.
+//
+// #3 CONSISTENT READS: one named fetcher per thing, each returning the
+//    same typed, normalised shape every time.
+// #4 NULLS: normalised at this boundary. Warehouse (holder_id null) is
+//    represented consistently; missing numbers default to 0; downstream
+//    never guesses.
+// ============================================================
+import { supabase } from '../supabaseClient'
+import { num } from './numbers'
+import { toDateKey } from './dates'
+
+// A stable sentinel for "warehouse" so holder_id null never leaks as a
+// raw null into downstream logic (the distro null=null decrement bug).
+export const WAREHOUSE = Object.freeze({ id: null, name: 'Warehouse', isWarehouse: true })
+
+// ---- NORMALISERS: raw DB row -> clean typed shape (one definition each) ----
+
+function normStockItem(r) {
+  return {
+    id: r.id,
+    product: r.product ?? '',
+    type: r.type ?? null,
+    brand: r.brand ?? null,
+    boxType: r.box_type ?? null,
+    archived: !!r.archived,
+    // VAT treatment: standard (VAT-inclusive) | second_hand (VAT-free).
+    // Default to standard unless flagged — matches the money-engine spec.
+    vatTreatment: r.vat_treatment === 'second_hand' ? 'second_hand' : 'standard',
+    breakPrice: r.break_price == null ? null : num(r.break_price),
+  }
+}
+
+function normWave(r) {
+  return {
+    id: r.id,
+    stockItemId: r.stock_item_id,
+    waveNo: num(r.wave_no),
+    qty: num(r.qty),                    // full precision
+    unitCost: num(r.unit_cost),         // full precision
+    totalCost: num(r.total_cost),       // full precision
+    revenueRecovered: num(r.revenue_recovered),
+    paidOff: !!r.paid_off,
+    // Per-wave VAT override: null = inherit the product's treatment,
+    // else 'standard' | 'second_hand' (sourcing differs by wave).
+    vatTreatment: r.vat_treatment === 'standard' || r.vat_treatment === 'second_hand' ? r.vat_treatment : null,
+    createdAt: r.created_at ?? null,
+  }
+}
+
+function normHolding(r) {
+  return {
+    id: r.id,
+    stockItemId: r.stock_item_id,
+    // #4: null holder == warehouse, represented consistently.
+    holderId: r.holder_id ?? null,
+    isWarehouse: r.holder_id == null,
+    waveNo: num(r.wave_no),
+    qty: num(r.qty),
+    unitCost: num(r.unit_cost),
+  }
+}
+
+function normStream(r) {
+  return {
+    id: r.id,
+    streamerId: r.streamer_id ?? null,
+    streamerName: r.streamer_name ?? '',
+    title: r.title ?? '',
+    platform: r.platform ?? null,
+    channel: r.channel ?? null,
+    // department + stream_type come from the scoped view; start/end feed hoursOf.
+    department: r.department ?? r.streamer_department ?? null,
+    streamType: r.stream_type ?? null,
+    streamStart: r.stream_start ?? null,
+    streamEnd: r.stream_end ?? null,
+    streamUrl: r.stream_url ?? null,        // share link to the VOD (accountability)
+    streamDate: toDateKey(r.stream_date),   // canonical local key, never UTC
+    totalSales: num(r.total_sales ?? r.revenue),  // gross — full precision
+    // net is streamer-entered and is the source of truth (money-engine spec).
+    net: r.net == null ? null : num(r.net),
+    shipping: num(r.shipping),
+    promo: r.promo == null ? null : num(r.promo),   // platform boost spend (counts in Total Spend)
+    fees: num(r.fees),
+    profit: num(r.profit),
+    createdAt: r.created_at ?? null,
+  }
+}
+
+function normStreamLine(r) {
+  return {
+    id: r.id,
+    streamId: r.stream_id,
+    stockItemId: r.stock_item_id ?? null,
+    product: r.product ?? '',
+    qty: num(r.qty),
+    unitCost: num(r.unit_cost),
+    lineTotal: num(r.line_total),
+    brokered: !!r.brokered,
+    lineKind: r.line_kind ?? 'sold',   // 'sold' | 'giveaway'
+  }
+}
+
+function normDistro(r) {
+  return {
+    id: r.id,
+    stockItemId: r.stock_item_id,
+    product: r.product ?? '',
+    waveNo: num(r.wave_no),
+    qty: num(r.qty),
+    revenue: num(r.revenue),
+    cost: num(r.cost),
+    profit: num(r.profit),
+    soldOn: toDateKey(r.sold_on),
+    note: r.note ?? null,
+    // V2 record fields (B2B/shop + invoice). Null on legacy rows.
+    saleChannel: r.sale_channel ?? null,       // 'b2b' | 'shop'
+    customerName: r.customer_name ?? null,
+    customerVat: r.customer_vat ?? null,
+    invoiceRef: r.invoice_ref ?? null,
+    paymentStatus: r.payment_status ?? null,   // 'paid' | 'unpaid'
+    paymentDue: r.payment_due ? toDateKey(r.payment_due) : null,
+    invoicePath: r.invoice_path ?? null,
+    createdAt: r.created_at ?? null,
+  }
+}
+
+function normProfile(r) {
+  return {
+    id: r.id,
+    name: r.name ?? '',
+    role: r.role ?? null,
+    department: r.department ?? null,
+    colour: r.colour ?? null,
+  }
+}
+
+// Streamer weekly-hours target (V2-only table). Keyed by profile id.
+function normTarget(r) {
+  return { streamerId: r.streamer_id, weeklyHours: num(r.weekly_hours) }
+}
+
+// Release calendar row (V2-only). Dates/times kept as raw strings.
+function normRelease(r) {
+  return {
+    id: r.id, product: r.product ?? '', sport: r.sport ?? null,
+    releaseDate: r.release_date ?? null, releaseTimeUtc: r.release_time_utc ?? null,
+    timeConfirmed: !!r.time_confirmed, isBowman: !!r.is_bowman,
+    status: r.status ?? 'scheduled', source: r.source ?? 'manual', sourceUrl: r.source_url ?? null,
+    invoiceRef: r.invoice_ref ?? null,
+    invoiceAmount: r.invoice_amount == null ? null : num(r.invoice_amount),
+    invoiceDue: r.invoice_due ?? null, invoiceStatus: r.invoice_status ?? 'none',
+    notes: r.notes ?? null,
+  }
+}
+
+// Unified stock activity row (v_stock_activity): who did what, when.
+function normActivity(r) {
+  return {
+    when: r.created_at ?? null, actor: r.actor_name ?? null, kind: r.kind ?? null,
+    product: r.product ?? null,
+    qty: r.qty == null ? null : num(r.qty),
+    cost: r.cost == null ? null : num(r.cost),
+    detail: r.detail ?? null,
+  }
+}
+
+// Card show (shared off-site event) + per-department entries + itemised costs.
+function normCardShow(r) {
+  return {
+    id: r.id, name: r.name ?? '', location: r.location ?? null,
+    startDate: r.start_date ?? null, endDate: r.end_date ?? null,
+    days: num(r.days), operatingHours: num(r.operating_hours),
+    notes: r.notes ?? null, createdBy: r.created_by ?? null, createdAt: r.created_at ?? null,
+  }
+}
+function normShowEntry(r) {
+  return {
+    id: r.id, showId: r.show_id, profileId: r.profile_id, department: r.department ?? null,
+    hours: num(r.hours), overnight: !!r.overnight,
+    salesCash: num(r.sales_cash), salesCard: num(r.sales_card), salesTransfer: num(r.sales_transfer),
+    profit: num(r.profit),
+  }
+}
+function normShowCost(r) {
+  return { id: r.id, showId: r.show_id, profileId: r.profile_id ?? null, label: r.label ?? '', amount: num(r.amount) }
+}
+
+// Product briefing (V2-only). Config/summary kept as free text; provenance
+// fields (source/sourceRef/receivedAt) carry where an emailed briefing came from.
+function normBriefing(r) {
+  return {
+    id: r.id, product: r.product ?? '', sport: r.sport ?? null,
+    releaseDate: r.release_date ?? null,
+    summary: r.summary ?? null, configuration: r.configuration ?? null,
+    status: r.status ?? 'new',                 // 'new' | 'reviewed'
+    source: r.source ?? 'manual',              // 'manual' | 'email'
+    sourceRef: r.source_ref ?? null,           // email subject/from for provenance
+    receivedAt: r.received_at ?? null,
+    notes: r.notes ?? null,
+    createdBy: r.created_by ?? null, createdAt: r.created_at ?? null,
+  }
+}
+
+// loadSource() fetches everything once and returns the single shared object.
+// Screens read from this object; they never call supabase themselves.
+
+// PostgREST caps a plain select at 1000 rows. Several tables (stream_lines,
+// holdings, streams) are already past that, so a bare select silently drops the
+// newest rows — e.g. a just-recorded stream's lines. Page through in 1000-row
+// chunks until a short page comes back, so we always load EVERYTHING.
+const PAGE = 1000
+async function fetchAll(table, select = '*') {
+  let from = 0, all = []
+  for (;;) {
+    const { data, error } = await supabase.from(table).select(select).range(from, from + PAGE - 1)
+    if (error) return { data: null, error }
+    all = all.concat(data || [])
+    if (!data || data.length < PAGE) break
+    from += PAGE
+  }
+  return { data: all, error: null }
+}
+
+export async function loadSource() {
+  const [items, waves, holdings, streams, lines, distro, profiles, releases, targets, activity, cardShows, showEntries, showCosts, briefings] = await Promise.all([
+    fetchAll('stock_items'),
+    fetchAll('stock_waves'),
+    fetchAll('stock_holdings'),
+    fetchAll('v_streams_scoped'),
+    fetchAll('stream_lines'),
+    fetchAll('distro_sales'),
+    fetchAll('profiles'),
+    // Release calendar is a V2-only table that may not exist yet (until the
+    // migration is run). Load it tolerantly so its absence never breaks the app.
+    fetchAll('release_calendar').catch(() => ({ data: [], error: null })),
+    fetchAll('streamer_targets').catch(() => ({ data: [], error: null })),
+    fetchAll('v_stock_activity').catch(() => ({ data: [], error: null })),
+    fetchAll('card_shows').catch(() => ({ data: [], error: null })),
+    fetchAll('card_show_entries').catch(() => ({ data: [], error: null })),
+    fetchAll('card_show_costs').catch(() => ({ data: [], error: null })),
+    fetchAll('product_briefings').catch(() => ({ data: [], error: null })),
+  ])
+
+  // Surface exactly which relation failed (core = fatal, rest = tolerated).
+  const named = {
+    stock_items: items, stock_waves: waves, stock_holdings: holdings,
+    v_streams_scoped: streams, stream_lines: lines, distro_sales: distro, profiles,
+    release_calendar: releases, streamer_targets: targets, v_stock_activity: activity,
+    card_shows: cardShows, card_show_entries: showEntries, card_show_costs: showCosts,
+    product_briefings: briefings,
+  }
+  const problems = Object.entries(named).filter(([, r]) => r && r.error)
+  if (problems.length) console.error('[loadSource] fetch errors:', problems.map(([t, r]) => `${t}: ${r.error?.message || r.error?.code || r.error}`))
+  const CORE = ['stock_items', 'stock_waves', 'stock_holdings', 'v_streams_scoped', 'stream_lines', 'distro_sales', 'profiles']
+  const coreFail = problems.filter(([t]) => CORE.includes(t))
+  if (coreFail.length) {
+    throw new Error(coreFail.map(([t, r]) => `${t}: ${r.error?.message || r.error?.code || 'error'}`).join('\n'))
+  }
+
+  return {
+    loadedAt: new Date(),
+    stockItems: (items.data || []).map(normStockItem),
+    waves: (waves.data || []).map(normWave),
+    holdings: (holdings.data || []).map(normHolding),
+    streams: (streams.data || []).map(normStream),
+    streamLines: (lines.data || []).map(normStreamLine),
+    distroSales: (distro.data || []).map(normDistro),
+    profiles: (profiles.data || []).map(normProfile),
+    releaseCalendar: ((releases && releases.data) || []).map(normRelease),
+    streamerTargets: ((targets && targets.data) || []).map(normTarget),
+    stockActivity: ((activity && activity.data) || []).map(normActivity),
+    cardShows: ((cardShows && cardShows.data) || []).map(normCardShow),
+    cardShowEntries: ((showEntries && showEntries.data) || []).map(normShowEntry),
+    cardShowCosts: ((showCosts && showCosts.data) || []).map(normShowCost),
+    briefings: ((briefings && briefings.data) || []).map(normBriefing),
+  }
+}
