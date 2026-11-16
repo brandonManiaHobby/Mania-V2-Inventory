@@ -42,6 +42,13 @@ export default function Streamers({ scoped }) {
   const [boardOpen, setBoardOpen] = useState(false)
   const [bizOpen, setBizOpen] = useState(false)
   const field = VIEW_FIELD[view]
+  const [mode, setMode] = useState('combined')   // combined | streams | shows — what the whole tab counts
+  // Per-row value for the active metric, respecting the mode. Revenue-type
+  // metrics (gross/net/net ex-VAT) use show TAKINGS; the profit metric uses the
+  // show's ENTERED profit (it's consolidated elsewhere, so it isn't computed).
+  const streamVal = (r) => r.t[field.value]
+  const showVal = (r) => field.value === 'trueProfit' ? (r.showProfit || 0) : (r.showRev || 0)
+  const rowVal = (r) => mode === 'shows' ? showVal(r) : mode === 'streams' ? streamVal(r) : streamVal(r) + showVal(r)
   const vatOf = (sid) => scoped.stockItems.find((x) => x.id === sid)?.vatTreatment === 'second_hand' ? 'second_hand' : 'standard'
   const colourMap = useMemo(() => Object.fromEntries(scoped.profiles.filter((p) => p.colour).map((p) => [p.name, p.colour])), [scoped])
 
@@ -89,9 +96,28 @@ export default function Streamers({ scoped }) {
 
   // The streamer toggle scopes the view (headline, chart, ranked list); the
   // leaderboards below still rank across everyone in the period.
-  const rows = useMemo(() => who === 'all' ? allRows : allRows.filter((r) => r.id === who), [allRows, who])
+  const rows = useMemo(() => {
+    const base = who === 'all' ? allRows : allRows.filter((r) => r.id === who)
+    // In 'shows' mode, drop streamers with no show activity so the view is clean.
+    const kept = mode === 'shows' ? base.filter((r) => (r.showRev || 0) > 0 || (r.showHours || 0) > 0) : base
+    return [...kept].sort((a, b) => rowVal(b) - rowVal(a))
+  }, [allRows, who, mode, field.value])
   const grandMax = Math.max(1, ...rows.map((r) => r.t.gross))
-  const totals = useMemo(() => sumMoney(rows.map((r) => r.t)), [rows])
+  // Headline totals follow the mode (shows have no platform fees).
+  const headline = useMemo(() => {
+    const base = sumMoney(rows.map((r) => r.t))
+    const showRev = rows.reduce((a, r) => a + (r.showRev || 0), 0)
+    const showProfit = rows.reduce((a, r) => a + (r.showProfit || 0), 0)
+    if (mode === 'shows') {
+      const main = field.value === 'trueProfit' ? showProfit : showRev
+      return { main, fees: 0, profit: showProfit, margin: showRev > 0 ? showProfit / showRev : 0 }
+    }
+    if (mode === 'streams') return { main: base[field.value], fees: base.fees, profit: base.trueProfit, margin: base.netMarginPct }
+    const main = (field.value === 'trueProfit' ? base.trueProfit : base[field.value]) + (field.value === 'trueProfit' ? showProfit : showRev)
+    const profit = base.trueProfit + showProfit
+    const totalRev = base.gross + showRev
+    return { main, fees: base.fees, profit, margin: totalRev > 0 ? profit / totalRev : 0 }
+  }, [rows, mode, field.value])
 
   // ---- Streamer leaderboard (period, everyone) ----
   const MIN_SHOWS = 3
@@ -105,16 +131,16 @@ export default function Streamers({ scoped }) {
     return {
       unranked: all.filter((r) => r.shows < MIN_SHOWS).sort((a, b) => b.shows - a.shows),
       cats: [
-        { key: 'Most sales', ...top(all, (r) => r.t.gross, gbp0) },
+        { key: mode === 'shows' ? 'Most show sales' : 'Most sales', ...top(all, (r) => mode === 'shows' ? (r.showRev || 0) : mode === 'streams' ? r.t.gross : r.t.gross + (r.showRev || 0), gbp0), note: mode === 'combined' ? 'stream + card-show' : undefined },
         { key: 'Most streams', ...top(all, (r) => r.shows, (v) => String(v)) },
         { key: 'Most hours', ...top(all, (r) => r.totalHours, (v) => v.toFixed(1) + 'h'), note: 'stream + card-show hours' },
-        { key: 'Best profit', ...top(all, (r) => r.t.trueProfit, gbp0) },
+        { key: 'Best profit', ...top(all, (r) => mode === 'shows' ? (r.showProfit || 0) : mode === 'streams' ? r.t.trueProfit : r.t.trueProfit + (r.showProfit || 0), gbp0) },
         { key: 'Best avg / show', ...top(ranked, (r) => r.shows ? r.t.gross / r.shows : 0, gbp0) },
         { key: 'Best rev / hour', ...top(ranked, (r) => r.revPerHour, gbp0) },
         { key: 'Best margin', ...top(ranked, (r) => r.t.netMarginPct, pct), note: 'total profit ÷ total revenue' },
       ],
     }
-  }, [allRows])
+  }, [allRows, mode])
 
   // ---- Business leaderboard (all-time records, every stream on record) ----
   const biz = useMemo(() => {
@@ -175,10 +201,17 @@ export default function Streamers({ scoped }) {
       <div style={{ fontSize: 12, color: '#999', marginTop: 6 }}>
         {lifetime ? 'Lifetime — every stream on record' : `${effFrom} → ${effTo}`}{who !== 'all' ? ` · ${rows[0]?.name || ''}` : ''}
       </div>
+      {/* Combined / Streams / Card shows — scopes the whole tab */}
+      <div style={{ display: 'inline-flex', gap: 2, padding: 2, background: '#f0efec', borderRadius: 999, marginTop: 14 }}>
+        {[['combined', 'Combined'], ['streams', 'Streams only'], ['shows', 'Card shows only']].map(([k, l]) => (
+          <button key={k} onClick={() => setMode(k)} style={{ padding: '5px 14px', borderRadius: 999, border: 'none', cursor: 'pointer', font: 'inherit', fontSize: 13, fontWeight: mode === k ? 700 : 400, background: mode === k ? '#fff' : 'transparent' }}>{l}</button>
+        ))}
+      </div>
+
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
-        <StatCard label={LABEL[view]} value={gbp0(totals[field.value])} sub={`${rows.length} streamers`} />
-        <StatCard label="Fees paid" value={gbp0(totals.fees)} accent="#c0392b" />
-        <StatCard label="True profit" value={gbp0(totals.trueProfit)} accent="#1a7f37" sub={`${pct(totals.netMarginPct)} net margin`} />
+        <StatCard label={mode === 'shows' ? 'Show ' + LABEL[view].toLowerCase() : mode === 'combined' ? 'Total ' + LABEL[view].toLowerCase() : LABEL[view]} value={gbp0(headline.main)} sub={`${rows.length} streamer${rows.length === 1 ? '' : 's'}`} />
+        <StatCard label="Fees paid" value={gbp0(headline.fees)} accent="#c0392b" sub={mode === 'shows' ? 'n/a for shows' : undefined} />
+        <StatCard label="True profit" value={gbp0(headline.profit)} accent="#1a7f37" sub={`${pct(headline.margin)} net margin`} />
       </div>
 
       {/* Two collapsible leaderboards — streamers + business records */}
@@ -222,8 +255,8 @@ export default function Streamers({ scoped }) {
       {/* Everyone at a glance — horizontal bars, one per streamer, distinct colours */}
       {rows.length > 0 && (
         <div className="panel" style={{ marginTop: 14 }}>
-          <div style={{ fontWeight: 700, marginBottom: 12 }}>{who === 'all' ? 'Total' : rows[0]?.name + ' —'} {LABEL[view].toLowerCase()} by streamer</div>
-          <StreamerBars rows={rows} field={field} colourMap={colourMap} />
+          <div style={{ fontWeight: 700, marginBottom: 12 }}>{who === 'all' ? (mode === 'shows' ? 'Card show' : mode === 'streams' ? 'Stream' : 'Total') : rows[0]?.name + ' —'} {LABEL[view].toLowerCase()} by streamer</div>
+          <StreamerBars rows={rows} mode={mode} field={field} colourMap={colourMap} />
         </div>
       )}
 
@@ -245,9 +278,9 @@ export default function Streamers({ scoped }) {
                 <MiniBars max={grandMax} formatValue={gbp0} bars={[{ label: 'Gross', value: r.t.gross, colour: '#4a7fe0' }, { label: 'Net', value: r.t.net, colour: '#1a7f37' }]} />
               </div>
               <div style={{ textAlign: 'right', minWidth: 90 }}>
-                <div style={{ fontWeight: 700, fontSize: 18 }}>{gbp0(r.t[field.value])}</div>
-                {r.showRev > 0 && field.value === 'gross' && <div style={{ fontSize: 11, color: '#5b21b6' }}>+{gbp0(r.showRev)} show · {gbp0(r.totalRevenue)} total</div>}
-                {field.margin && <div style={{ fontSize: 12, color: '#888' }}>{pct(r.t[field.margin])}</div>}
+                <div style={{ fontWeight: 700, fontSize: 18 }}>{gbp0(rowVal(r))}</div>
+                {mode === 'combined' && showVal(r) > 0 && <div style={{ fontSize: 11, color: '#5b21b6' }}>{gbp0(streamVal(r))} stream · {gbp0(showVal(r))} show</div>}
+                {field.margin && mode !== 'shows' && <div style={{ fontSize: 12, color: '#888' }}>{pct(r.t[field.margin])}</div>}
               </div>
             </button>
             {openId === r.id && <StreamerDeep r={r} scoped={scoped} view={view} field={field} vatOf={vatOf} />}
@@ -365,22 +398,38 @@ function StreamerDeep({ r, scoped, view, field, vatOf }) {
 
 // Horizontal bars — names on the left (so they always fit), bar, value on the
 // right, a distinct colour per streamer. Mirrors V1's "total sales by streamer".
-function StreamerBars({ rows, field, colourMap }) {
-  const max = Math.max(1, ...rows.map((r) => r.t[field.value]))
+function StreamerBars({ rows, mode, field, colourMap }) {
+  const SHOW = '#5b21b6'
+  const sv = (r) => r.t[field.value]
+  const hv = (r) => field.value === 'trueProfit' ? (r.showProfit || 0) : (r.showRev || 0)
+  const val = (r) => mode === 'shows' ? hv(r) : mode === 'streams' ? sv(r) : sv(r) + hv(r)
+  const max = Math.max(1, ...rows.map((r) => Math.max(0, val(r))))
+  const anyShow = mode === 'combined' && rows.some((r) => hv(r) > 0)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
       {rows.map((r) => {
-        const v = r.t[field.value]
+        const streamSeg = mode === 'shows' ? 0 : Math.max(0, sv(r))
+        const showSeg = mode === 'streams' ? 0 : Math.max(0, hv(r))
         return (
           <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 118, flex: '0 0 118px', fontSize: 12.5, textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.name}>{r.name}</div>
-            <div style={{ flex: 1, background: 'var(--bg)', borderRadius: 6, overflow: 'hidden', height: 22 }}>
-              <div style={{ width: `${Math.max(2, (v / max) * 100)}%`, height: '100%', background: colourOf(r.name, colourMap), borderRadius: 6 }} />
+            <div style={{ flex: 1, background: 'var(--bg)', borderRadius: 6, overflow: 'hidden', height: 22, display: 'flex' }}>
+              {streamSeg > 0 && <div title={`Stream ${gbp0(streamSeg)}`} style={{ width: `${(streamSeg / max) * 100}%`, height: '100%', background: colourOf(r.name, colourMap) }} />}
+              {showSeg > 0 && <div title={`Card show ${gbp0(showSeg)}`} style={{ width: `${(showSeg / max) * 100}%`, height: '100%', background: SHOW }} />}
             </div>
-            <div style={{ width: 74, flex: '0 0 74px', fontSize: 12.5, fontWeight: 700, textAlign: 'right' }}>{gbp0(v)}</div>
+            <div style={{ width: 118, flex: '0 0 118px', fontSize: 12.5, fontWeight: 700, textAlign: 'right' }}>
+              {gbp0(val(r))}
+              {mode === 'combined' && showSeg > 0 && <div style={{ fontSize: 10, fontWeight: 400, color: SHOW }}>{gbp0(streamSeg)}+{gbp0(showSeg)}</div>}
+            </div>
           </div>
         )
       })}
+      {anyShow && (
+        <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#888', marginTop: 4, paddingLeft: 128 }}>
+          <span>Streamer colour = stream</span>
+          <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: SHOW, marginRight: 5, verticalAlign: 'middle' }} />Card show</span>
+        </div>
+      )}
     </div>
   )
 }
