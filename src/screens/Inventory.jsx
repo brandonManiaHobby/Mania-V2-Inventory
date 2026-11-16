@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
-import { gbp, gbp0, int } from '../data'
+import { gbp, gbp0, int, useSource, createSinglesBatch } from '../data'
 import WaveRows from '../components/WaveRows'
 import InspectProductModal from '../components/InspectProductModal'
 import EditProductModal from '../components/EditProductModal'
+import CreateSinglesModal from '../components/CreateSinglesModal'
 import { stockLevel } from '../constants'
 
 const LVL_COLOUR = { critical: '#c82828', low: '#c0531f', out: '#999', ok: undefined }
@@ -31,13 +32,16 @@ export default function Inventory({ scoped }) {
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('all')      // category filter chip
   const [tab, setTab] = useState('stock') // stock | activity
+  const [newSingles, setNewSingles] = useState(false)
+  const { refresh } = useSource()
   const canEdit = !!scoped.cap?.isAdmin || !!scoped.cap?.isManager
+  const canMove = !!scoped.cap?.canMoveStock
 
   const data = useMemo(() => {
     const byItem = {}
     for (const item of scoped.stockItems) {
       if (item.archived) continue
-      byItem[item.id] = { id: item.id, product: item.product, category: item.type || 'Uncategorised', vat: item.vatTreatment, warehouse: 0, withStreamers: 0, value: 0, waves: [], holders: [], received: 0, sold: 0 }
+      byItem[item.id] = { id: item.id, product: item.product, category: item.type || 'Uncategorised', vat: item.vatTreatment, isSingles: item.isSingles, warehouse: 0, withStreamers: 0, value: 0, waves: [], holders: [], received: 0, sold: 0 }
     }
     for (const h of scoped.holdings) {
       const r = byItem[h.stockItemId]; if (!r || h.qty <= 0) continue
@@ -108,8 +112,12 @@ export default function Inventory({ scoped }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
         <h2 style={{ margin: 0 }}>Inventory</h2>
-        {tab === 'stock' && <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search product…" style={{ padding: '8px 12px', borderRadius: 999, border: '1px solid #ddd', font: 'inherit', width: 200 }} />}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {tab === 'stock' && canMove && <button onClick={() => setNewSingles(true)} style={{ padding: '8px 14px', borderRadius: 999, border: '1px solid #ddd', background: '#fff', font: 'inherit', fontWeight: 600, cursor: 'pointer' }}>+ Singles batch</button>}
+          {tab === 'stock' && <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search product…" style={{ padding: '8px 12px', borderRadius: 999, border: '1px solid #ddd', font: 'inherit', width: 200 }} />}
+        </div>
       </div>
+      {newSingles && <CreateSinglesModal onClose={() => setNewSingles(false)} onSaved={async () => { setNewSingles(false); await refresh() }} />}
 
       <div style={{ display: 'inline-flex', gap: 2, padding: 2, background: '#f0efec', borderRadius: 999, margin: '14px 0' }}>
         {[['stock', 'Stock'], ['activity', 'Activity log']].map(([k, l]) => (
@@ -186,6 +194,7 @@ export default function Inventory({ scoped }) {
                       <div style={{ flex: '1 1 200px', minWidth: 160 }}>
                         <div style={{ fontWeight: 600 }}>
                           {short(r.product)}
+                          {r.isSingles && <span style={{ marginLeft: 8, fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#ede9fe', color: '#5b21b6' }}>Singles</span>}
                           {r.vat === 'second_hand' && <span style={{ marginLeft: 8, fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#e6f0e6', color: '#1a7f37' }}>VAT-free</span>}
                           {r.oversoldBy > 0 && <span style={{ marginLeft: 8, fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#fde0e0', color: '#c82828' }}>oversold</span>}
                         </div>

@@ -361,6 +361,24 @@ export async function addStock({ product, type, cost, qty }) {
   if (error) throw error
 }
 
+// CREATE A SINGLES BATCH: a VAT-free (second-hand) stock item that lives in
+// inventory like any product — assignable to streamers, run on streams, consumed
+// FIFO with the unsold remainder rolling over. name + TCG/Sports tag + qty + the
+// WHOLE batch cost (unit cost is derived). Gated server-side by can_move_stock().
+export async function createSinglesBatch({ name, dept, qty, cost }) {
+  const n = String(name || '').trim()
+  const q = Number(qty); const c = Number(cost)
+  if (!n) throw new Error('Batch name is required')
+  if (!['TCG', 'Sports'].includes(dept)) throw new Error('Pick a TCG or Sports tag')
+  if (!(q > 0)) throw new Error('Quantity must be more than zero')
+  if (!(c >= 0)) throw new Error('Cost cannot be negative')
+  const { data, error } = await supabase.rpc('create_singles_batch', {
+    p_name: n, p_dept: dept, p_qty: q, p_total_cost: money2(c),
+  })
+  if (error) throw error
+  return data
+}
+
 // CORRECT / WRITE-OFF warehouse quantity to an EXACT number. Reuses V1's
 // set_warehouse_qty, which keeps the FIFO waves in sync (it consumes layers on a
 // decrease) and logs an adjustment. Use it to tally off stock (set a lower qty),

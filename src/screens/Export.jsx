@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { computeStream, computeMoney, sumMoney, exVat, vatOfInclusive } from '../money'
-import { gbp0, todayKey, parseLocalDate, toDateKey, displayDate, vatTreatmentOf, hoursOf, shortName, canonPlatform, showHoursByName } from '../data'
+import { gbp0, todayKey, parseLocalDate, toDateKey, displayDate, vatTreatmentOf, hoursOf, shortName, canonPlatform, showHoursByName, showRevenueByName } from '../data'
 
 // ============================================================
 // EXPORT / REPORTS (V2 — the comprehensive, customisable export)
@@ -139,14 +139,17 @@ export default function Export({ scoped }) {
     const totalHours = inRange.reduce((a, s) => a + hoursOf(s), 0)
     // Card-show hours (same window) credited to each streamer by name, broken out.
     const showByName = showHoursByName(scoped, from, to)
+    const showRevByName = showRevenueByName(scoped, from, to)
     const totalShowHours = Object.values(showByName).reduce((a, o) => a + o.hours, 0)
+    const totalShowRev = Object.values(showRevByName).reduce((a, o) => a + o.revenue, 0)
     const streamerRows = dimRows(byStreamer, streamerMeta).map((r) => {
       const sh = showByName[r.name]?.hours || 0
-      return { ...r, hours: r.hours || 0, showHours: sh, totalHours: (r.hours || 0) + sh }
+      const srev = showRevByName[r.name]?.revenue || 0
+      return { ...r, hours: r.hours || 0, showHours: sh, totalHours: (r.hours || 0) + sh, showRev: srev, totalRevenue: (r.gross || 0) + srev }
     })
 
     return {
-      streamCount: inRange.length, totalHours, totalShowHours, total,
+      streamCount: inRange.length, totalHours, totalShowHours, totalShowRev, total,
       channels: dimRows(byChannel), platforms: dimRows(byPlatform), types: dimRows(byType),
       streamers: streamerRows,
       products: Object.keys(products).sort().map((k) => ({ name: k, ...products[k] })),
@@ -187,7 +190,9 @@ export default function Export({ scoped }) {
       out.push(['Hours streamed', model.totalHours.toFixed(1)].join(','))
       out.push(['Card-show hours', model.totalShowHours.toFixed(1)].join(','))
       out.push(['Total hours', (model.totalHours + model.totalShowHours).toFixed(1)].join(','))
-      out.push(['Gross', m(model.total.gross)].join(','))
+      out.push(['Gross (streams)', m(model.total.gross)].join(','))
+      out.push(['Card-show revenue', m(model.totalShowRev)].join(','))
+      out.push(['Total revenue (incl show)', m(model.total.gross + model.totalShowRev)].join(','))
       out.push(['Net', m(model.total.net)].join(','))
       out.push(['VAT owed', m(model.total.vatOwed)].join(','))
       out.push(['Realised profit', m(model.total.trueProfit)].join(','))
@@ -198,8 +203,8 @@ export default function Export({ scoped }) {
     }
     const dimSection = (title, rows, withHours) => {
       out.push(title)
-      out.push(['Name', 'Streams', ...(withHours ? ['Stream hours', 'Card-show hours', 'Total hours'] : []), 'Gross', 'Net', 'VAT', 'Profit'].join(','))
-      rows.forEach((r) => out.push([q(r.name), r.count, ...(withHours ? [(r.hours || 0).toFixed(1), (r.showHours || 0).toFixed(1), (r.totalHours || 0).toFixed(1)] : []), m(r.gross), m(r.net), m(r.vat), m(r.profit)].join(',')))
+      out.push(['Name', 'Streams', ...(withHours ? ['Stream hours', 'Card-show hours', 'Total hours'] : []), 'Gross', ...(withHours ? ['Show revenue', 'Total revenue'] : []), 'Net', 'VAT', 'Profit'].join(','))
+      rows.forEach((r) => out.push([q(r.name), r.count, ...(withHours ? [(r.hours || 0).toFixed(1), (r.showHours || 0).toFixed(1), (r.totalHours || 0).toFixed(1)] : []), m(r.gross), ...(withHours ? [m(r.showRev || 0), m(r.totalRevenue || 0)] : []), m(r.net), m(r.vat), m(r.profit)].join(',')))
       out.push('')
     }
     if (on.channels) dimSection('BY CHANNEL', model.channels)
@@ -252,14 +257,14 @@ export default function Export({ scoped }) {
           <thead><tr>
             <th style={{ ...th, textAlign: 'left' }}>Name</th>
             <th style={th}>Streams</th>{withHours && <><th style={th}>Stream h</th><th style={th}>Show h</th><th style={th}>Total h</th></>}
-            <th style={th}>Gross</th><th style={th}>Net</th><th style={th}>VAT</th><th style={th}>Profit</th>
+            <th style={th}>Gross</th>{withHours && <><th style={th}>Show rev</th><th style={th}>Total rev</th></>}<th style={th}>Net</th><th style={th}>VAT</th><th style={th}>Profit</th>
           </tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.name} style={{ borderTop: '1px solid #f3f3f3' }}>
                 <td style={{ ...td, textAlign: 'left' }}>{r.name}</td>
                 <td style={td}>{r.count}</td>{withHours && <><td style={td}>{(r.hours || 0).toFixed(1)}</td><td style={td}>{(r.showHours || 0).toFixed(1)}</td><td style={{ ...td, fontWeight: 700 }}>{(r.totalHours || 0).toFixed(1)}</td></>}
-                <td style={td}>{gbp0(r.gross)}</td><td style={td}>{gbp0(r.net)}</td>
+                <td style={td}>{gbp0(r.gross)}</td>{withHours && <><td style={td}>{gbp0(r.showRev || 0)}</td><td style={{ ...td, fontWeight: 700 }}>{gbp0(r.totalRevenue || 0)}</td></>}<td style={td}>{gbp0(r.net)}</td>
                 <td style={td}>{gbp0(r.vat)}</td><td style={{ ...td, fontWeight: 700 }}>{gbp0(r.profit)}</td>
               </tr>
             ))}

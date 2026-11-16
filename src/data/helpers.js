@@ -67,6 +67,50 @@ export function showHoursByName(source, from, to) {
   return out
 }
 
+// ---- CARD-SHOW REVENUE — the ONE place that credits off-site event takings ----
+// Mirrors the hours helpers. Takings = cash + card + transfer per attendee entry,
+// dated by the show's start date. Fold into a streamer's TOTAL revenue alongside
+// stream gross, kept split so the source is always visible. Entered show profit
+// rides along too (it's consolidated elsewhere, so it's entered, not computed).
+const entryRevenue = (e) => (Number(e.salesCash) || 0) + (Number(e.salesCard) || 0) + (Number(e.salesTransfer) || 0)
+
+// profileId -> { revenue, profit, count } within [from,to] (inclusive; omit for all-time).
+export function showRevenueByPerson(source, from, to) {
+  const showById = {}
+  for (const sh of (source.cardShows || [])) showById[sh.id] = sh
+  const out = {}
+  for (const e of (source.cardShowEntries || [])) {
+    if (!e.profileId) continue
+    const sh = showById[e.showId]
+    if (!sh || !sh.startDate) continue
+    if (from && sh.startDate < from) continue
+    if (to && sh.startDate > to) continue
+    const o = out[e.profileId] || (out[e.profileId] = { revenue: 0, profit: 0, count: 0 })
+    o.revenue += entryRevenue(e)
+    o.profit += Number(e.profit) || 0
+    o.count += 1
+  }
+  return out
+}
+
+// Totals for one person in a window (convenience).
+export function showRevenueFor(source, profileId, from, to) {
+  if (!profileId) return { revenue: 0, profit: 0, count: 0 }
+  return showRevenueByPerson(source, from, to)[profileId] || { revenue: 0, profit: 0, count: 0 }
+}
+
+// Same, keyed by profile NAME (for surfaces that group by streamer name, not id).
+export function showRevenueByName(source, from, to) {
+  const byId = showRevenueByPerson(source, from, to)
+  const out = {}
+  for (const p of (source.profiles || [])) {
+    const o = byId[p.id]; if (!o) continue
+    const e = out[p.name] || (out[p.name] = { revenue: 0, profit: 0, count: 0 })
+    e.revenue += o.revenue; e.profit += o.profit; e.count += o.count
+  }
+  return out
+}
+
 // Trim verbose product prefixes for display. ONE definition.
 export function shortName(p) {
   return String(p || '')

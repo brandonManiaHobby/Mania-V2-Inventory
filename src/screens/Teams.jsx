@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { computeStream, sumMoney } from '../money'
-import { gbp0, gbp, int, useSource, reassignDepartment, hoursOf, showHoursByPerson } from '../data'
+import { gbp0, gbp, int, useSource, reassignDepartment, hoursOf, showHoursByPerson, showRevenueByPerson } from '../data'
 import StreamerInspectModal from '../components/StreamerInspectModal'
 
 // ============================================================
@@ -40,6 +40,7 @@ export default function Teams({ scoped }) {
   const departments = useMemo(() => [...new Set(scoped.profiles.map((p) => p.department).filter(Boolean))].sort(), [scoped])
 
   const showMap = useMemo(() => showHoursByPerson(scoped), [scoped])   // all-time card-show hours by person
+  const showRevMap = useMemo(() => showRevenueByPerson(scoped), [scoped])   // all-time card-show takings by person
   const people = useMemo(() => scoped.profiles.map((p) => {
     const holdings = scoped.holdings.filter((h) => h.holderId === p.id && h.qty > 0)
     const stockValue = holdings.reduce((a, h) => a + h.qty * h.unitCost, 0)
@@ -53,8 +54,9 @@ export default function Teams({ scoped }) {
     const t = sumMoney(ladders)
     const streamHours = streams.reduce((a, s) => a + hoursOf(s), 0)
     const showHours = showMap[p.id]?.hours || 0
-    return { ...p, holdings, stockValue, stockUnits, shows: streams.length, gross: t.gross, streamHours, showHours, totalHours: streamHours + showHours }
-  }), [scoped, showMap])
+    const showRev = showRevMap[p.id]?.revenue || 0
+    return { ...p, holdings, stockValue, stockUnits, shows: streams.length, gross: t.gross, streamHours, showHours, totalHours: streamHours + showHours, showRev, totalRevenue: t.gross + showRev }
+  }), [scoped, showMap, showRevMap])
 
   const byGroup = useMemo(() => {
     const g = {}
@@ -83,6 +85,8 @@ export default function Teams({ scoped }) {
           const totShows = members.reduce((a, m) => a + m.shows, 0)
           const totGross = members.reduce((a, m) => a + m.gross, 0)
           const totHours = members.reduce((a, m) => a + m.totalHours, 0)
+          const totRevenue = members.reduce((a, m) => a + m.totalRevenue, 0)
+          const totShowRev = members.reduce((a, m) => a + m.showRev, 0)
           const dark = g.dark
           return (
             <div key={g.key} style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid ' + (dark ? '#2c231d' : '#eee'), background: dark ? '#241c17' : '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
@@ -99,7 +103,7 @@ export default function Teams({ scoped }) {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: dark ? '#fff' : '#111' }}>{members.length} {members.length === 1 ? 'person' : 'people'}</div>
-                  <div style={{ fontSize: 12, color: dark ? '#b7a99c' : '#999' }}>{(totShows > 0 || totHours > 0) ? `${totShows} stream${totShows === 1 ? '' : 's'} · ${totHours.toFixed(1)}h · ${gbp0(totGross)}` : 'no activity yet'}</div>
+                  <div style={{ fontSize: 12, color: dark ? '#b7a99c' : '#999' }}>{(totShows > 0 || totHours > 0) ? `${totShows} stream${totShows === 1 ? '' : 's'} · ${totHours.toFixed(1)}h · ${gbp0(totRevenue)}${totShowRev > 0 ? ` (${gbp0(totGross)} stream · ${gbp0(totShowRev)} show)` : ''}` : 'no activity yet'}</div>
                 </div>
                 <div style={{ fontSize: 18, color: dark ? '#b7a99c' : '#bbb', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>›</div>
               </button>
@@ -115,7 +119,7 @@ export default function Teams({ scoped }) {
                           <div style={{ width: 10, height: 10, borderRadius: 999, background: p.colour || '#ccc', flexShrink: 0 }} />
                           <div style={{ flex: '1 1 150px', minWidth: 120 }}>
                             <div style={{ fontWeight: 600 }}>{p.name}</div>
-                            <div style={{ fontSize: 12, color: dark ? '#b7a99c' : '#999' }}>{ROLE_LABEL[p.role] || p.role || '—'}{(p.shows > 0 || p.totalHours > 0) ? ` · ${p.shows} stream${p.shows === 1 ? '' : 's'} · ${p.totalHours.toFixed(1)}h · ${gbp0(p.gross)}` : ''}</div>
+                            <div style={{ fontSize: 12, color: dark ? '#b7a99c' : '#999' }}>{ROLE_LABEL[p.role] || p.role || '—'}{(p.shows > 0 || p.totalHours > 0) ? ` · ${p.shows} stream${p.shows === 1 ? '' : 's'} · ${p.totalHours.toFixed(1)}h · ${gbp0(p.totalRevenue)}${p.showRev > 0 ? ` (${gbp0(p.gross)}+${gbp0(p.showRev)})` : ''}` : ''}</div>
                           </div>
                           <div style={{ textAlign: 'right', minWidth: 90 }}>
                             <div style={{ fontWeight: 700 }}>{int(p.stockUnits)} units</div>

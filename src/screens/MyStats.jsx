@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { gbp0, gbp, int, toDateKey, parseLocalDate, displayDate, shortName, showHoursFor } from '../data'
+import { gbp0, gbp, int, toDateKey, parseLocalDate, displayDate, shortName, showHoursFor, showRevenueFor } from '../data'
 import StatCard from '../components/StatCard'
 import OverlayChart from '../components/OverlayChart'
 
@@ -62,8 +62,9 @@ export default function MyStats({ scoped }) {
     // streamed hours so attendees can show total hours were met. One shared
     // helper does the aggregation everywhere (no drift).
     const sh = showHoursFor(scoped, scoped.cap?.userId, range.from, range.to)
+    const sr = showRevenueFor(scoped, scoped.cap?.userId, range.from, range.to)
 
-    return { streams: streams.length, revenue, hours, units, products: products.size, days, cumulative, productList, showHours: sh.hours, showCount: sh.count, totalHours: hours + sh.hours }
+    return { streams: streams.length, revenue, hours, units, products: products.size, days, cumulative, productList, showHours: sh.hours, showCount: sh.count, totalHours: hours + sh.hours, showRevenue: sr.revenue, showProfit: sr.profit, totalRevenue: revenue + sr.revenue }
   }, [scoped, range.from, range.to])
 
   return (
@@ -82,7 +83,9 @@ export default function MyStats({ scoped }) {
       </div>
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 14 }}>
-        <StatCard label="Revenue generated" value={gbp0(model.revenue)} />
+        <StatCard label="Revenue generated" value={gbp0(model.revenue)} sub={model.showRevenue > 0 ? 'streams only' : undefined} />
+        {model.showRevenue > 0 && <StatCard label="Card show revenue" value={gbp0(model.showRevenue)} sub={model.showCount > 0 ? `${model.showCount} show${model.showCount === 1 ? '' : 's'}` : undefined} />}
+        {model.showRevenue > 0 && <StatCard label="Total revenue" value={gbp0(model.totalRevenue)} accent="#5b21b6" />}
         <StatCard label="Streams" value={int(model.streams)} />
         <StatCard label="Hours streamed" value={model.hours > 0 ? model.hours.toFixed(1) + 'h' : '—'} />
         <StatCard label="Card show hours" value={model.showHours > 0 ? model.showHours.toFixed(1) + 'h' : '—'} sub={model.showCount > 0 ? `${model.showCount} show${model.showCount === 1 ? '' : 's'}` : undefined} />

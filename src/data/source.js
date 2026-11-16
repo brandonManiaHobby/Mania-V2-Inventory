@@ -34,6 +34,7 @@ function normStockItem(r) {
     // Default to standard unless flagged — matches the money-engine spec.
     vatTreatment: r.vat_treatment === 'second_hand' ? 'second_hand' : 'standard',
     breakPrice: r.break_price == null ? null : num(r.break_price),
+    isSingles: !!r.is_singles,   // a singles batch (loose cards), always second-hand
   }
 }
 
