@@ -508,16 +508,19 @@ export async function declineConsumableRequest(id) {
 // who may (admin/manager). Direct update — same pattern V1 uses.
 export async function updateProduct({ id, product, type, archived, breakPrice, vatTreatment }) {
   if (!id) throw new Error('No product')
-  const patch = {}
-  if (product !== undefined) { if (!String(product).trim()) throw new Error('Product name cannot be blank'); patch.product = String(product).trim() }
-  if (type !== undefined) patch.type = type || null
-  if (archived !== undefined) patch.archived = !!archived
-  if (breakPrice !== undefined) patch.break_price = breakPrice === '' || breakPrice == null ? null : money2(Number(breakPrice))
-  if (vatTreatment !== undefined) {
-    if (!['standard', 'second_hand'].includes(vatTreatment)) throw new Error('Invalid VAT treatment')
-    patch.vat_treatment = vatTreatment
-  }
-  const { error } = await supabase.from('stock_items').update(patch).eq('id', id)
+  if (product == null || !String(product).trim()) throw new Error('Product name cannot be blank')
+  if (vatTreatment != null && !['standard', 'second_hand'].includes(vatTreatment)) throw new Error('Invalid VAT treatment')
+  // Via a SECURITY DEFINER RPC (admin/manager guard) so it isn't blocked by the
+  // stock_items row-level-security policy — a direct table update was failing
+  // silently for managers.
+  const { error } = await supabase.rpc('update_product', {
+    p_id: id,
+    p_product: String(product).trim(),
+    p_type: type || null,
+    p_archived: archived === undefined ? null : !!archived,
+    p_break_price: breakPrice === '' || breakPrice == null ? null : money2(Number(breakPrice)),
+    p_vat_treatment: vatTreatment ?? null,
+  })
   if (error) throw error
 }
 

@@ -2,6 +2,9 @@ import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { computeStream } from '../money'
 import { gbp0, gbp, pct, displayDate, todayKey, useSource, deleteStream, editStream } from '../data'
+import SearchableSelect from '../components/SearchableSelect'
+
+const productOptions = (scoped) => scoped.stockItems.filter((x) => !x.archived).map((x) => ({ id: x.id, label: x.product }))
 
 // ============================================================
 // PAST STREAMS (Stage 5 — V1 parity, hardened)
@@ -320,9 +323,7 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
       </div>
       {elines.map((l, i) => (
         <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
-          <select style={{ ...field, flex: 2 }} value={l.stockItemId} onChange={(e) => setLine(i, 'stockItemId', e.target.value)}>
-            <option value="">Product…</option>{scoped.stockItems.filter((x) => !x.archived).map((x) => <option key={x.id} value={x.id}>{x.product}</option>)}
-          </select>
+          <SearchableSelect style={{ flex: 2 }} value={l.stockItemId} options={productOptions(scoped)} onChange={(id) => setLine(i, 'stockItemId', id)} placeholder="Search product…" />
           <input style={{ ...field, width: 70 }} type="number" placeholder="Qty" value={l.qty} onChange={(e) => setLine(i, 'qty', e.target.value)} />
           <input style={{ ...field, width: 90 }} type="number" placeholder="£ sold" value={l.price} onChange={(e) => setLine(i, 'price', e.target.value)} />
         </div>
@@ -333,9 +334,7 @@ function EditForm({ s, lines, scoped, vatOf, onCancel, onSaved }) {
       <div style={{ marginTop: 14, fontSize: 13, fontWeight: 700, color: '#b8700a' }}>Giveaways <span style={{ fontWeight: 400, color: '#999' }}>· leave the shelf at £0, cost still counts</span></div>
       {giveaways.map((g, i) => (
         <div key={i} style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-          <select style={{ ...field, flex: 2 }} value={g.stockItemId} onChange={(e) => setGiveaway(i, 'stockItemId', e.target.value)}>
-            <option value="">Giveaway product…</option>{scoped.stockItems.filter((x) => !x.archived).map((x) => <option key={x.id} value={x.id}>{x.product}</option>)}
-          </select>
+          <SearchableSelect style={{ flex: 2 }} value={g.stockItemId} options={productOptions(scoped)} onChange={(id) => setGiveaway(i, 'stockItemId', id)} placeholder="Search giveaway product…" />
           <input style={{ ...field, width: 70 }} type="number" placeholder="Qty" value={g.qty} onChange={(e) => setGiveaway(i, 'qty', e.target.value)} />
           <button onClick={() => setGiveaways(giveaways.filter((_, idx) => idx !== i))} style={{ ...field, width: 40, cursor: 'pointer', background: '#fff', color: '#c82828' }}>×</button>
         </div>
